@@ -42,7 +42,8 @@ export default defineConfig({
         host: '127.0.0.1',
         port: 5757,
         proxy: {
-            '/admin': { target: 'http://127.0.0.1:5757', changeOrigin: true }, '/api': { target: 'http://127.0.0.1:8777', changeOrigin: true },
+            '/admin': { target: 'http://127.0.0.1:5757', changeOrigin: true },
+            '/api': { target: 'http://127.0.0.1:8777', changeOrigin: true },
             '/auth': { target: 'http://127.0.0.1:8777', changeOrigin: true },
             '/sse': { target: 'http://127.0.0.1:8777', changeOrigin: true },
             '/uploads': { target: 'http://127.0.0.1:8777', changeOrigin: true },

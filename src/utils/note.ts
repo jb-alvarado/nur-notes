@@ -38,10 +38,16 @@ function nodeText(node: NoteNode): string {
     return node.text || extractAstText(node.ast)
 }
 
-export function noteExcerpt(note: Note) {
+export function noteExcerpt(note: Note, maxLength = 280) {
     const node = note.nodes?.[0]
     const text = node ? nodeText(node) : ''
-    return text.replace(/\s+/g, ' ').trim() || 'Keine Vorschau für diese Notiz vorhanden.'
+    const excerpt = text.replace(/\s+/g, ' ').trim() || 'Keine Vorschau für diese Notiz vorhanden.'
+
+    if (excerpt.length <= maxLength) return excerpt
+
+    // Nicht mitten in einem Wort abschneiden: bis zum letzten vollständigen Wort zurückgehen.
+    const shortened = excerpt.slice(0, maxLength + 1).replace(/\s+\S*$/, '').trimEnd()
+    return `${shortened || excerpt.slice(0, maxLength).trimEnd()}…`
 }
 
 export function noteText(note: Note) {
