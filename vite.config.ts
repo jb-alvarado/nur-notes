@@ -23,11 +23,21 @@ export default defineConfig({
                 display: 'standalone',
             },
             workbox: {
+                navigateFallbackDenylist: [
+                    /^\/admin(?:\/|$)/,
+                    /^\/api(?:\/|$)/,
+                    /^\/auth(?:\/|$)/,
+                    /^\/sse(?:\/|$)/,
+                ],
+
                 runtimeCaching: [
                     {
                         urlPattern: /\/api\/content\/.*/i,
                         handler: 'NetworkFirst',
-                        options: { cacheName: 'nur-cms-api', networkTimeoutSeconds: 4 },
+                        options: {
+                            cacheName: 'nur-cms-api',
+                            networkTimeoutSeconds: 4,
+                        },
                     },
                 ],
             },
