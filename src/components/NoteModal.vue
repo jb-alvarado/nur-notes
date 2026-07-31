@@ -23,7 +23,7 @@ watch(
     >
         <div class="modal-box max-w-3xl p-0">
             <button
-                class="btn btn-sm btn-circle btn-ghost absolute right-3 top-3 z-10 bg-base-100/80"
+                class="btn btn-sm btn-circle btn-ghost absolute right-3 top-3 z-10 bg-base-100/80 text-xl"
                 aria-label="Dialog schließen"
                 @click="emit('close')"
             >
@@ -51,11 +51,28 @@ watch(
                     <div
                         class="mb-4 flex flex-wrap items-center gap-2 text-sm text-base-content/60"
                     >
-                        <span class="badge badge-outline">{{
-                            note.category?.name || 'Allgemein'
-                        }}</span
-                        ><time>{{ formatDate(note.created_at) }}</time
-                        ><span v-if="note.authors?.[0]">· {{ authorName(note.authors[0]) }}</span>
+                        <RouterLink
+                            v-if="note.category?.slug"
+                            :to="{ name: 'notes-category', params: { category: note.category.slug } }"
+                            class="badge badge-outline hover:border-primary hover:text-primary"
+                            @click="emit('close')"
+                        >
+                            {{ note.category.name || 'Allgemein' }}
+                        </RouterLink>
+                        <span v-else class="badge badge-outline">{{ note.category?.name || 'Allgemein' }}</span>
+                        <time>{{ formatDate(note.created_at) }}</time>
+                    </div>
+                    <div class="mb-4 flex items-center gap-2 text-sm text-base-content/60">
+                        <span>Autor:</span>
+                        <RouterLink
+                            v-if="note.authors?.[0]?.slug"
+                            :to="{ name: 'notes-author', params: { author: note.authors[0].slug } }"
+                            class="link link-hover font-medium text-base-content"
+                            @click="emit('close')"
+                        >
+                            {{ authorName(note.authors[0]) }}
+                        </RouterLink>
+                        <span v-else>{{ authorName(note.authors?.[0]) }}</span>
                     </div>
                     <h2 class="text-2xl font-bold tracking-tight sm:text-3xl">
                         {{ note.title || 'Unbenannte Notiz' }}
@@ -64,9 +81,15 @@ watch(
                         {{ noteText(note) }}
                     </p>
                     <div class="mt-7 flex flex-wrap gap-2">
-                        <span v-for="tag in note.tags" :key="tag.slug" class="badge badge-ghost"
-                            >#{{ tag.name }}</span
+                        <RouterLink
+                            v-for="tag in note.tags"
+                            :key="tag.slug"
+                            :to="{ name: 'notes-tag', params: { tag: tag.slug } }"
+                            class="badge badge-ghost hover:border-primary hover:text-primary"
+                            @click="emit('close')"
                         >
+                            #{{ tag.name }}
+                        </RouterLink>
                     </div>
                 </article>
             </template>

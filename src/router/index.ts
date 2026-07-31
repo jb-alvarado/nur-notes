@@ -5,7 +5,9 @@ const router = createRouter({
     history: createWebHistory(import.meta.env.BASE_URL),
     routes: [
         { path: '/', name: 'notes', component: NotesView },
-        { path: '/seite/:page(\\d+)', name: 'notes-page', component: NotesView },
+        { path: '/kategorie/:category', name: 'notes-category', component: NotesView },
+        { path: '/tag/:tag', name: 'notes-tag', component: NotesView },
+        { path: '/autor/:author', name: 'notes-author', component: NotesView },
     ],
 })
 

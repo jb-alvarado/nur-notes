@@ -5,7 +5,7 @@ defineEmits<{ toggleTheme: [] }>()
 
 <template>
     <header class="border-b border-base-300 bg-base-100/90 backdrop-blur">
-        <div class="navbar mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div class="navbar mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 min-h-2">
             <RouterLink to="/" class="flex flex-1 items-center gap-3 whitespace-nowrap">
                 <div
                     class="grid size-10 place-items-center rounded-xl bg-primary text-primary-content shadow-sm"

@@ -24,7 +24,7 @@ const emit = defineEmits<{
 </script>
 
 <template>
-    <section class="mb-8 rounded-2xl border border-base-300 bg-base-100 p-4 shadow-sm sm:p-5">
+    <section class="mb-6 rounded-2xl border border-base-300 bg-base-100 p-4 shadow-sm">
         <form class="flex gap-2" @submit.prevent="$emit('submit')">
             <label class="input input-bordered flex flex-1 items-center gap-2">
                 <svg
@@ -43,9 +43,18 @@ const emit = defineEmits<{
                     aria-label="Notizen durchsuchen"
                     @input="emit('search', ($event.target as HTMLInputElement).value)"
                 />
+                <button
+                    v-if="search"
+                    type="button"
+                    class="btn btn-ghost btn-xs btn-circle text-xl"
+                    aria-label="Suche zurücksetzen"
+                    @click="emit('search', '')"
+                >
+                    ✕
+                </button>
             </label>
         </form>
-        <div class="mt-4 flex flex-wrap items-center gap-2 lg:grid lg:grid-cols-3">
+        <div class="mt-2 flex flex-wrap items-center gap-2 lg:grid lg:grid-cols-3">
             <select
                 :value="category"
                 class="select select-bordered select-sm w-full lg:w-full"
