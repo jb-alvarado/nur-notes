@@ -16,6 +16,7 @@ import NoteFilters from '../components/NoteFilters.vue'
 import NoteModal from '../components/NoteModal.vue'
 
 type FilterKind = 'tag' | 'category' | 'author'
+type SortField = 'created_at' | 'title' | 'author.last_name'
 
 const pageSize = 18
 const rowHeight = 516
@@ -31,6 +32,8 @@ const search = ref('')
 const selectedTag = ref(filterFromRoute('tag'))
 const selectedCategory = ref(filterFromRoute('category'))
 const selectedAuthor = ref(filterFromRoute('author'))
+const sortField = ref<SortField>('created_at')
+const sortDirection = ref<'asc' | 'desc'>('desc')
 const isLoading = ref(true)
 const isLoadingMore = ref(false)
 const error = ref('')
@@ -47,8 +50,16 @@ let requestVersion = 0
 let resizeObserver: ResizeObserver | undefined
 
 const showReset = computed(() =>
-    Boolean(search.value || selectedTag.value || selectedCategory.value || selectedAuthor.value),
+    Boolean(
+        search.value ||
+            selectedTag.value ||
+            selectedCategory.value ||
+            selectedAuthor.value ||
+            sortField.value !== 'created_at' ||
+            sortDirection.value !== 'desc',
+    ),
 )
+const ordering = computed(() => `${sortField.value} ${sortDirection.value.toUpperCase()}`)
 const hasMore = computed(() => notes.value.length < total.value)
 const noteRows = computed(() => {
     const rows: Note[][] = []
@@ -107,6 +118,7 @@ async function loadNotes(reset = false) {
         const data = await fetchNotes({
             limit: pageSize,
             offset: reset ? 0 : notes.value.length,
+            ordering: ordering.value,
             search: search.value.trim(),
             tag: selectedTag.value,
             category: selectedCategory.value,
@@ -154,6 +166,8 @@ function resetFilters() {
     selectedTag.value = ''
     selectedCategory.value = ''
     selectedAuthor.value = ''
+    sortField.value = 'created_at'
+    sortDirection.value = 'desc'
     void router.push({ name: 'notes' })
 }
 
@@ -214,7 +228,7 @@ function scrollToTop() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
-watch([search, selectedTag, selectedCategory, selectedAuthor], scheduleReload)
+watch([search, selectedTag, selectedCategory, selectedAuthor, sortField, sortDirection], scheduleReload)
 watch(
     () => route.fullPath,
     syncRouteFilters,
@@ -250,6 +264,8 @@ onMounted(async () => {
             :tag="selectedTag"
             :category="selectedCategory"
             :author="selectedAuthor"
+            :sort-field="sortField"
+            :sort-direction="sortDirection"
             :search="search"
             :tags="tags"
             :categories="categories"
@@ -259,6 +275,8 @@ onMounted(async () => {
             @update:tag="selectFilter('tag', $event)"
             @update:category="selectFilter('category', $event)"
             @update:author="selectFilter('author', $event)"
+            @update:sort-field="sortField = $event as SortField"
+            @update:sort-direction="sortDirection = $event"
             @submit="submitSearch"
             @reset="resetFilters"
         />

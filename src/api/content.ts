@@ -43,6 +43,7 @@ export interface Note {
 export interface NoteQuery {
     limit: number
     offset: number
+    ordering?: string
     search?: string
     tag?: string
     category?: string

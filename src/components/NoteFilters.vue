@@ -2,7 +2,7 @@
 import type { Author, TaxonomyItem } from '../api/content'
 import { authorName } from '../utils/note'
 
-defineProps<{
+const props = defineProps<{
     search: string
     tags: TaxonomyItem[]
     categories: TaxonomyItem[]
@@ -10,6 +10,8 @@ defineProps<{
     tag: string
     category: string
     author: string
+    sortField: string
+    sortDirection: 'asc' | 'desc'
     showReset: boolean
 }>()
 
@@ -18,9 +20,15 @@ const emit = defineEmits<{
     'update:tag': [value: string]
     'update:category': [value: string]
     'update:author': [value: string]
+    'update:sortField': [value: string]
+    'update:sortDirection': [value: 'asc' | 'desc']
     submit: []
     reset: []
 }>()
+
+function toggleSortDirection() {
+    emit('update:sortDirection', props.sortDirection === 'asc' ? 'desc' : 'asc')
+}
 </script>
 
 <template>
@@ -53,6 +61,25 @@ const emit = defineEmits<{
                     ✕
                 </button>
             </label>
+            <select
+                :value="sortField"
+                class="select select-bordered hidden w-44 lg:block"
+                aria-label="Sortieren nach"
+                @change="emit('update:sortField', ($event.target as HTMLSelectElement).value)"
+            >
+                <option value="created_at">Erstelldatum</option>
+                <option value="title">Titel</option>
+                <option value="author.last_name">Autor</option>
+            </select>
+            <button
+                type="button"
+                class="btn btn-square hidden lg:flex"
+                :aria-label="sortDirection === 'asc' ? 'Aufsteigend sortiert' : 'Absteigend sortiert'"
+                :title="sortDirection === 'asc' ? 'Aufsteigend sortiert' : 'Absteigend sortiert'"
+                @click="toggleSortDirection"
+            >
+                {{ sortDirection === 'asc' ? '↑' : '↓' }}
+            </button>
         </form>
         <div class="mt-2 flex flex-wrap items-center gap-2 lg:grid lg:grid-cols-3">
             <select
@@ -90,6 +117,27 @@ const emit = defineEmits<{
             </select>
             <button v-if="showReset" class="btn btn-ghost btn-sm lg:col-span-3 lg:justify-self-start" @click="$emit('reset')">
                 Zurücksetzen
+            </button>
+        </div>
+        <div class="mt-2 flex gap-2 lg:hidden">
+            <select
+                :value="sortField"
+                class="select select-bordered select-sm grow"
+                aria-label="Sortieren nach"
+                @change="emit('update:sortField', ($event.target as HTMLSelectElement).value)"
+            >
+                <option value="created_at">Erstelldatum</option>
+                <option value="title">Titel</option>
+                <option value="author.last_name">Autor</option>
+            </select>
+            <button
+                type="button"
+                class="btn btn-square btn-sm"
+                :aria-label="sortDirection === 'asc' ? 'Aufsteigend sortiert' : 'Absteigend sortiert'"
+                :title="sortDirection === 'asc' ? 'Aufsteigend sortiert' : 'Absteigend sortiert'"
+                @click="toggleSortDirection"
+            >
+                {{ sortDirection === 'asc' ? '↑' : '↓' }}
             </button>
         </div>
     </section>
