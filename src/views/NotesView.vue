@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
     fetchFacets,
     fetchNote,
     fetchNotes,
-    type Author,
+    type FacetAuthor,
+    type FacetLocale,
+    type FacetTaxonomyItem,
     type Note,
-    type Locale,
-    type TaxonomyItem,
 } from '../api/content'
 import NoteCard from '../components/NoteCard.vue'
 import NoteFilters from '../components/NoteFilters.vue'
@@ -16,85 +16,77 @@ import NoteModal from '../components/NoteModal.vue'
 
 type FilterKind = 'tag' | 'category' | 'author'
 type SortField = 'created_at' | 'title' | 'author.last_name'
+type QueryKey = FilterKind | 'locale' | 'search' | 'sort' | 'direction'
 
 const pageSize = 18
-const rowHeight = 516
 const route = useRoute()
 const router = useRouter()
-const virtualList = ref<HTMLElement | null>(null)
 const notes = ref<Note[]>([])
-const tags = ref<TaxonomyItem[]>([])
-const categories = ref<TaxonomyItem[]>([])
-const authors = ref<Author[]>([])
+const tags = ref<FacetTaxonomyItem[]>([])
+const categories = ref<FacetTaxonomyItem[]>([])
+const authors = ref<FacetAuthor[]>([])
 const total = ref(0)
-const search = ref('')
+const search = ref(filterFromQuery('search'))
 const selectedTag = ref(filterFromQuery('tag'))
 const selectedCategory = ref(filterFromQuery('category'))
 const selectedAuthor = ref(filterFromQuery('author'))
 const selectedLocale = ref(filterFromQuery('locale'))
-const locales = ref<Locale[]>([])
-const sortField = ref<SortField>('created_at')
-const sortDirection = ref<'asc' | 'desc'>('desc')
+const locales = ref<FacetLocale[]>([])
+const sortField = ref<SortField>(sortFieldFromQuery())
+const sortDirection = ref<'asc' | 'desc'>(sortDirectionFromQuery())
 const isLoading = ref(true)
 const isLoadingMore = ref(false)
+const hasLoaded = ref(false)
 const error = ref('')
 const activeNote = ref<Note | null>(null)
 const isDetailLoading = ref(false)
 const detailError = ref('')
-const scrollTop = ref(0)
 const pageScrollY = ref(0)
-const viewportHeight = ref(0)
-const columnCount = ref(1)
-const listTop = ref(0)
+const facetError = ref('')
 let searchTimer: ReturnType<typeof setTimeout> | undefined
 let requestVersion = 0
 let facetRequestVersion = 0
-let resizeObserver: ResizeObserver | undefined
+let notesController: AbortController | undefined
+let facetsController: AbortController | undefined
+let detailController: AbortController | undefined
 
 const ordering = computed(() => `${sortField.value} ${sortDirection.value.toUpperCase()}`)
 const showReset = computed(() =>
     Boolean(
         search.value ||
-            selectedTag.value ||
-            selectedCategory.value ||
-            selectedAuthor.value ||
-            selectedLocale.value ||
-            sortField.value !== 'created_at' ||
-            sortDirection.value !== 'desc',
+        selectedTag.value ||
+        selectedCategory.value ||
+        selectedAuthor.value ||
+        selectedLocale.value ||
+        sortField.value !== 'created_at' ||
+        sortDirection.value !== 'desc',
     ),
 )
 const hasMore = computed(() => notes.value.length < total.value)
-const noteRows = computed(() => {
-    const rows: Note[][] = []
-    for (let index = 0; index < notes.value.length; index += columnCount.value) {
-        rows.push(notes.value.slice(index, index + columnCount.value))
-    }
-    return rows
-})
-const visibleRange = computed(() => {
-    const visibleRows = Math.ceil(viewportHeight.value / rowHeight) + 2
-    const start = Math.max(0, Math.floor(scrollTop.value / rowHeight) - 1)
-    return { start, end: Math.min(noteRows.value.length, start + visibleRows) }
-})
-const visibleRows = computed(() => noteRows.value.slice(visibleRange.value.start, visibleRange.value.end))
-const virtualHeight = computed(() => noteRows.value.length * rowHeight)
 const showScrollTop = computed(() => pageScrollY.value > 400)
 
-function filterFromQuery(kind: FilterKind | 'locale') {
+function filterFromQuery(kind: QueryKey) {
     const value = route.query[kind]
     return typeof value === 'string' ? value : ''
+}
+
+function sortFieldFromQuery(): SortField {
+    const field = filterFromQuery('sort')
+    return field === 'title' || field === 'author.last_name' ? field : 'created_at'
+}
+
+function sortDirectionFromQuery(): 'asc' | 'desc' {
+    return filterFromQuery('direction') === 'asc' ? 'asc' : 'desc'
 }
 
 function selectFilter(kind: FilterKind, slug: string) {
     if (kind === 'tag') selectedTag.value = slug
     if (kind === 'category') selectedCategory.value = slug
     if (kind === 'author') selectedAuthor.value = slug
-    syncFilterQuery()
 }
 
 function selectLocale(locale: string) {
     selectedLocale.value = locale
-    syncFilterQuery()
 }
 
 function syncFilterQuery() {
@@ -104,54 +96,55 @@ function syncFilterQuery() {
             tag: selectedTag.value,
             author: selectedAuthor.value,
             locale: selectedLocale.value,
+            search: search.value.trim(),
+            sort: sortField.value === 'created_at' ? '' : sortField.value,
+            direction: sortDirection.value === 'desc' ? '' : sortDirection.value,
         }).filter(([, value]) => value),
     )
     void router.replace({ name: 'notes', query })
 }
 
-function syncRouteFilters() {
-    selectedTag.value = filterFromQuery('tag')
-    selectedCategory.value = filterFromQuery('category')
-    selectedAuthor.value = filterFromQuery('author')
-    selectedLocale.value = filterFromQuery('locale')
-}
-
 async function loadNotes(reset = false) {
     if (reset) {
+        notesController?.abort()
         requestVersion += 1
         notes.value = []
         total.value = 0
-        scrollTop.value = 0
+        hasLoaded.value = false
         pageScrollY.value = 0
         window.scrollTo({ top: 0 })
-        resizeObserver?.disconnect()
-        resizeObserver = undefined
     } else if (isLoading.value || isLoadingMore.value || !hasMore.value) {
         return
     }
 
     const version = requestVersion
+    const controller = new AbortController()
+    notesController = controller
     if (reset) isLoading.value = true
     else isLoadingMore.value = true
     error.value = ''
 
     try {
-        const data = await fetchNotes({
-            limit: pageSize,
-            offset: reset ? 0 : notes.value.length,
-            ordering: ordering.value,
-            search: search.value.trim(),
-            tag: selectedTag.value,
-            category: selectedCategory.value,
-            author: selectedAuthor.value,
-            locale: selectedLocale.value,
-        })
+        const data = await fetchNotes(
+            {
+                limit: pageSize,
+                offset: reset ? 0 : notes.value.length,
+                ordering: ordering.value,
+                search: search.value.trim(),
+                tag: selectedTag.value,
+                category: selectedCategory.value,
+                author: selectedAuthor.value,
+                locale: selectedLocale.value,
+            },
+            controller.signal,
+        )
         if (version !== requestVersion) return
 
         notes.value = reset ? data.results : [...notes.value, ...data.results]
         total.value = data.count
+        hasLoaded.value = true
     } catch (cause) {
-        if (version === requestVersion) {
+        if (version === requestVersion && cause instanceof Error && cause.name !== 'AbortError') {
             error.value =
                 cause instanceof Error ? cause.message : 'Die Notizen konnten nicht geladen werden.'
         }
@@ -159,10 +152,6 @@ async function loadNotes(reset = false) {
         if (version === requestVersion) {
             isLoading.value = false
             isLoadingMore.value = false
-            await nextTick()
-            observeVirtualList()
-            updateVirtualList()
-            onWindowScroll()
         }
     }
 }
@@ -172,29 +161,42 @@ function loadMore() {
 }
 
 async function loadFilters() {
+    facetsController?.abort()
     const version = ++facetRequestVersion
+    const controller = new AbortController()
+    facetsController = controller
+    facetError.value = ''
     try {
-        const facets = await fetchFacets({
-            search: search.value.trim(),
-            tag: selectedTag.value,
-            category: selectedCategory.value,
-            author: selectedAuthor.value,
-            locale: selectedLocale.value,
-        })
+        const facets = await fetchFacets(
+            {
+                search: search.value.trim(),
+                tag: selectedTag.value,
+                category: selectedCategory.value,
+                author: selectedAuthor.value,
+                locale: selectedLocale.value,
+            },
+            controller.signal,
+        )
         if (version !== facetRequestVersion) return
 
         tags.value = facets.tags
         categories.value = facets.categories
         authors.value = facets.authors
         locales.value = facets.locales
-    } catch {
-        // Keep the existing options available if the optional facets request fails.
+    } catch (cause) {
+        if (
+            version === facetRequestVersion &&
+            cause instanceof Error &&
+            cause.name !== 'AbortError'
+        ) {
+            facetError.value = 'Filteroptionen konnten nicht aktualisiert werden.'
+        }
     }
 }
 
 function submitSearch() {
     if (searchTimer) clearTimeout(searchTimer)
-    void Promise.all([loadNotes(true), loadFilters()])
+    reloadData()
 }
 
 function resetFilters() {
@@ -205,7 +207,6 @@ function resetFilters() {
     selectedLocale.value = ''
     sortField.value = 'created_at'
     sortDirection.value = 'desc'
-    syncFilterQuery()
 }
 
 async function openNote(note: Note) {
@@ -214,11 +215,15 @@ async function openNote(note: Note) {
         return
     }
 
+    detailController?.abort()
+    const controller = new AbortController()
+    detailController = controller
     isDetailLoading.value = true
     detailError.value = ''
     try {
-        activeNote.value = await fetchNote(note.slug, selectedLocale.value)
+        activeNote.value = await fetchNote(note.slug, selectedLocale.value, controller.signal)
     } catch (cause) {
+        if (cause instanceof Error && cause.name === 'AbortError') return
         detailError.value =
             cause instanceof Error ? cause.message : 'Die Notiz konnte nicht geladen werden.'
     } finally {
@@ -227,36 +232,24 @@ async function openNote(note: Note) {
 }
 
 function closeNote() {
+    detailController?.abort()
     activeNote.value = null
     isDetailLoading.value = false
     detailError.value = ''
 }
 
+function reloadData() {
+    void Promise.all([loadNotes(true), loadFilters()])
+}
+
 function scheduleReload() {
     if (searchTimer) clearTimeout(searchTimer)
-    searchTimer = setTimeout(() => void Promise.all([loadNotes(true), loadFilters()]), 250)
-}
-
-function updateVirtualList() {
-    const container = virtualList.value
-    if (!container) return
-
-    listTop.value = container.getBoundingClientRect().top + window.scrollY
-    viewportHeight.value = window.innerHeight
-    columnCount.value = Math.max(1, Math.floor((container.clientWidth + 20) / (17 * 16 + 20)))
-}
-
-function observeVirtualList() {
-    if (!virtualList.value || resizeObserver) return
-
-    resizeObserver = new ResizeObserver(updateVirtualList)
-    resizeObserver.observe(virtualList.value)
+    searchTimer = setTimeout(reloadData, 250)
 }
 
 function onWindowScroll() {
     pageScrollY.value = window.scrollY
-    scrollTop.value = Math.max(0, window.scrollY - listTop.value)
-    if (window.scrollY + window.innerHeight >= listTop.value + virtualHeight.value - rowHeight * 2) {
+    if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 600) {
         loadMore()
     }
 }
@@ -265,24 +258,31 @@ function scrollToTop() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
-watch([search, selectedTag, selectedCategory, selectedAuthor, selectedLocale, sortField, sortDirection], scheduleReload)
 watch(
-    () => route.fullPath,
-    syncRouteFilters,
+    [
+        search,
+        selectedTag,
+        selectedCategory,
+        selectedAuthor,
+        selectedLocale,
+        sortField,
+        sortDirection,
+    ],
+    () => {
+        syncFilterQuery()
+        scheduleReload()
+    },
 )
 onBeforeUnmount(() => {
     if (searchTimer) clearTimeout(searchTimer)
-    resizeObserver?.disconnect()
+    notesController?.abort()
+    facetsController?.abort()
+    detailController?.abort()
     window.removeEventListener('scroll', onWindowScroll)
-    window.removeEventListener('resize', updateVirtualList)
 })
-onMounted(async () => {
-    await nextTick()
-    updateVirtualList()
-    observeVirtualList()
+onMounted(() => {
     window.addEventListener('scroll', onWindowScroll, { passive: true })
-    window.addEventListener('resize', updateVirtualList)
-    void Promise.all([loadNotes(true), loadFilters()])
+    reloadData()
 })
 </script>
 
@@ -290,7 +290,9 @@ onMounted(async () => {
     <main class="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
         <section class="mb-4 flex flex-col justify-between gap-5 md:flex-row md:items-end">
             <div>
-                <h1 class="text-3xl font-bold tracking-tight sm:text-4xl">Zitat- und Gedankensammlung</h1>
+                <h1 class="text-3xl font-bold tracking-tight sm:text-4xl">
+                    Zitat- und Gedankensammlung
+                </h1>
             </div>
             <p class="text-sm text-base-content/60">
                 <span class="font-semibold text-base-content">{{ total }}</span> Notizen gefunden
@@ -322,30 +324,34 @@ onMounted(async () => {
         />
 
         <div v-if="error" role="alert" class="alert alert-error mb-8">
-            <span>{{ error }}</span><button class="btn btn-sm" @click="loadNotes(true)">Erneut versuchen</button>
+            <span>{{ error }}</span
+            ><button class="btn btn-sm" @click="loadNotes(true)">Erneut versuchen</button>
         </div>
-        <div v-if="isLoading" class="note-grid grid gap-5">
-            <div v-for="item in pageSize" :key="item" class="h-72 animate-pulse rounded-2xl bg-base-300"></div>
+        <div v-if="facetError" role="alert" class="alert alert-warning mb-8">
+            <span>{{ facetError }}</span
+            ><button class="btn btn-sm" @click="loadFilters">Erneut versuchen</button>
         </div>
-        <div
-            v-else-if="notes.length"
-            ref="virtualList"
-        >
-            <div class="relative" :style="{ height: `${virtualHeight}px` }">
-                <div :style="{ transform: `translateY(${visibleRange.start * rowHeight}px)` }">
-                    <div
-                        v-for="(row, index) in visibleRows"
-                        :key="visibleRange.start + index"
-                        class="grid h-124 gap-x-5 mb-5"
-                        :style="{ gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))` }"
-                    >
-                        <NoteCard v-for="note in row" :key="note.id" :note="note" @select="openNote" />
-                    </div>
-                </div>
+        <template v-if="isLoading">
+            <div class="note-grid grid gap-5">
+                <div
+                    v-for="item in pageSize"
+                    :key="item"
+                    class="h-72 animate-pulse rounded-2xl bg-base-300"
+                ></div>
             </div>
-            <div v-if="isLoadingMore" class="py-4 text-center text-sm text-base-content/60">Weitere Notizen werden geladen …</div>
-        </div>
-        <div v-else class="rounded-2xl border border-dashed border-base-300 bg-base-100 py-20 text-center">
+        </template>
+        <template v-else-if="notes.length">
+            <div class="note-grid grid gap-5">
+                <NoteCard v-for="note in notes" :key="note.id" :note="note" @select="openNote" />
+            </div>
+            <div v-if="isLoadingMore" class="py-4 text-center text-sm text-base-content/60">
+                Weitere Notizen werden geladen …
+            </div>
+        </template>
+        <div
+            v-else-if="hasLoaded"
+            class="rounded-2xl border border-dashed border-base-300 bg-base-100 py-20 text-center"
+        >
             <p class="text-lg font-semibold">Keine Notizen gefunden</p>
             <p class="mt-1 text-base-content/60">Passe deine Suche oder Filter an.</p>
         </div>
@@ -358,6 +364,11 @@ onMounted(async () => {
         >
             ↑
         </button>
-        <NoteModal :note="activeNote" :is-loading="isDetailLoading" :error="detailError" @close="closeNote" />
+        <NoteModal
+            :note="activeNote"
+            :is-loading="isDetailLoading"
+            :error="detailError"
+            @close="closeNote"
+        />
     </main>
 </template>

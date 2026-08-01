@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import type { Author, Locale, TaxonomyItem } from '../api/content'
+import type { FacetAuthor, FacetLocale, FacetTaxonomyItem } from '../api/content'
 import { authorName } from '../utils/note'
 
 const props = defineProps<{
     search: string
-    tags: TaxonomyItem[]
-    categories: TaxonomyItem[]
-    authors: Author[]
-    locales: Locale[]
+    tags: FacetTaxonomyItem[]
+    categories: FacetTaxonomyItem[]
+    authors: FacetAuthor[]
+    locales: FacetLocale[]
     locale: string
     showReset: boolean
     tag: string
@@ -97,8 +97,7 @@ function toggleSortDirection() {
             >
                 <option value="">Alle Kategorien</option>
                 <option v-for="item in categories" :key="item.slug" :value="item.slug">
-                    {{ item.name
-                    }}<template v-if="item.count !== undefined"> ({{ item.count }})</template>
+                    {{ item.name }} ({{ item.count }})
                 </option>
             </select>
             <select
@@ -109,8 +108,7 @@ function toggleSortDirection() {
             >
                 <option value="">Alle Tags</option>
                 <option v-for="item in tags" :key="item.slug" :value="item.slug">
-                    {{ item.name
-                    }}<template v-if="item.count !== undefined"> ({{ item.count }})</template>
+                    {{ item.name }} ({{ item.count }})
                 </option>
             </select>
             <select
@@ -121,8 +119,7 @@ function toggleSortDirection() {
             >
                 <option value="">Alle Autoren</option>
                 <option v-for="item in authors" :key="item.slug" :value="item.slug">
-                    {{ authorName(item)
-                    }}<template v-if="item.count !== undefined"> ({{ item.count }})</template>
+                    {{ authorName(item) }} ({{ item.count }})
                 </option>
             </select>
             <select
@@ -133,8 +130,7 @@ function toggleSortDirection() {
             >
                 <option value="">Alle Sprachen</option>
                 <option v-for="item in locales" :key="item.code" :value="item.code">
-                    {{ item.name || item.code.toUpperCase()
-                    }}<template v-if="item.count !== undefined"> ({{ item.count }})</template>
+                    {{ item.name || item.code.toUpperCase() }} ({{ item.count }})
                 </option>
             </select>
             <button

@@ -7,7 +7,6 @@ export interface TaxonomyItem {
     id?: number
     name?: string
     slug?: string
-    count?: number
 }
 
 export interface Author extends TaxonomyItem {
@@ -18,7 +17,18 @@ export interface Author extends TaxonomyItem {
 export interface Locale {
     code: string
     name: string
-    count?: number
+}
+
+export interface FacetTaxonomyItem extends TaxonomyItem {
+    count: number
+}
+
+export interface FacetAuthor extends Author {
+    count: number
+}
+
+export interface FacetLocale extends Locale {
+    count: number
 }
 
 export interface NoteNode {
@@ -59,15 +69,14 @@ export interface NoteQuery {
 }
 
 export interface FacetsResponse {
-    categories: TaxonomyItem[]
-    tags: TaxonomyItem[]
-    authors: Author[]
-    locales: Locale[]
+    categories: FacetTaxonomyItem[]
+    tags: FacetTaxonomyItem[]
+    authors: FacetAuthor[]
+    locales: FacetLocale[]
 }
 
 const apiBase = (import.meta.env.VITE_NUR_CMS_URL ?? '').replace(/\/$/, '')
 const noteType = import.meta.env.VITE_NUR_NOTE_TYPE ?? 'note'
-export const defaultLocale = import.meta.env.VITE_NUR_LOCALE ?? 'de'
 
 function url(path: string, params: Record<string, string | number | undefined> = {}) {
     const search = new URLSearchParams()
@@ -77,51 +86,33 @@ function url(path: string, params: Record<string, string | number | undefined> =
     return `${apiBase}${path}?${search}`
 }
 
-async function get<T>(path: string, params?: Record<string, string | number | undefined>): Promise<T> {
-    const response = await fetch(url(path, params))
+async function get<T>(path: string, params?: Record<string, string | number | undefined>, signal?: AbortSignal): Promise<T> {
+    const response = await fetch(url(path, params), { signal })
     if (!response.ok) throw new Error(`CMS-Anfrage fehlgeschlagen (${response.status})`)
     return response.json() as Promise<T>
 }
 
-export function fetchNotes(query: NoteQuery) {
-    const { locale = defaultLocale, ...queryParams } = query
+export function fetchNotes(query: NoteQuery, signal?: AbortSignal) {
     return get<ListResponse<Note>>('/api/content/entries', {
         type: noteType,
-        locale,
         fields: 'id,title,slug,created_at,updated_at,media,category.name,category.slug,tags,author.first_name,author.last_name,author.slug,node.text,node.ast',
         ordering: '-created_at',
         character_limit: 420,
         blocks_limit: 1,
-        ...queryParams,
-    })
+        ...query,
+    }, signal)
 }
 
-export function fetchNote(slug: string, locale = defaultLocale) {
+export function fetchNote(slug: string, locale?: string, signal?: AbortSignal) {
     return get<Note>(`/api/content/entries/${encodeURIComponent(noteType)}/${encodeURIComponent(slug)}`, {
         locale,
         fields: 'id,title,slug,created_at,updated_at,media,category.name,category.slug,tags,author.first_name,author.last_name,author.slug,node.text,node.ast',
-    })
+    }, signal)
 }
 
-export function fetchFacets(query: Omit<NoteQuery, 'limit' | 'offset' | 'ordering'>) {
+export function fetchFacets(query: Omit<NoteQuery, 'limit' | 'offset' | 'ordering'>, signal?: AbortSignal) {
     return get<FacetsResponse>('/api/content/entries/facets', {
         type: noteType,
         ...query,
-    })
-}
-
-export function fetchTags() {
-    return get<ListResponse<TaxonomyItem>>('/api/content/tags', { fields: 'id,name,slug', limit: 200, ordering: 'name' })
-}
-
-export function fetchCategories(locale = defaultLocale) {
-    return get<ListResponse<TaxonomyItem>>('/api/content/categories', { fields: 'id,name,slug', locale, limit: 200, ordering: 'name' })
-}
-
-export function fetchAuthors() {
-    return get<ListResponse<Author>>('/api/content/authors', { fields: 'id,first_name,last_name,slug', limit: 200, ordering: 'last_name' })
-}
-
-export function fetchLocales() {
-    return get<ListResponse<Locale>>('/api/locales', { fields: 'code,name', limit: 200, ordering: 'name' })
+    }, signal)
 }
