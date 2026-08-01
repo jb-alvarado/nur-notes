@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Author, TaxonomyItem } from '../api/content'
+import type { Author, Locale, TaxonomyItem } from '../api/content'
 import { authorName } from '../utils/note'
 
 const props = defineProps<{
@@ -7,12 +7,14 @@ const props = defineProps<{
     tags: TaxonomyItem[]
     categories: TaxonomyItem[]
     authors: Author[]
+    locales: Locale[]
+    locale: string
+    showReset: boolean
     tag: string
     category: string
     author: string
     sortField: string
     sortDirection: 'asc' | 'desc'
-    showReset: boolean
 }>()
 
 const emit = defineEmits<{
@@ -20,10 +22,11 @@ const emit = defineEmits<{
     'update:tag': [value: string]
     'update:category': [value: string]
     'update:author': [value: string]
+    'update:locale': [value: string]
+    reset: []
     'update:sortField': [value: string]
     'update:sortDirection': [value: 'asc' | 'desc']
     submit: []
-    reset: []
 }>()
 
 function toggleSortDirection() {
@@ -74,14 +77,18 @@ function toggleSortDirection() {
             <button
                 type="button"
                 class="btn btn-square hidden lg:flex"
-                :aria-label="sortDirection === 'asc' ? 'Aufsteigend sortiert' : 'Absteigend sortiert'"
+                :aria-label="
+                    sortDirection === 'asc' ? 'Aufsteigend sortiert' : 'Absteigend sortiert'
+                "
                 :title="sortDirection === 'asc' ? 'Aufsteigend sortiert' : 'Absteigend sortiert'"
                 @click="toggleSortDirection"
             >
                 {{ sortDirection === 'asc' ? '↑' : '↓' }}
             </button>
         </form>
-        <div class="mt-2 flex flex-wrap items-center gap-2 lg:grid lg:grid-cols-3">
+        <div
+            class="mt-2 flex flex-wrap items-center gap-2 lg:grid lg:grid-cols-[repeat(3,minmax(0,1fr))_10rem_auto]"
+        >
             <select
                 :value="category"
                 class="select select-bordered select-sm w-full lg:w-full"
@@ -90,7 +97,8 @@ function toggleSortDirection() {
             >
                 <option value="">Alle Kategorien</option>
                 <option v-for="item in categories" :key="item.slug" :value="item.slug">
-                    {{ item.name }}
+                    {{ item.name
+                    }}<template v-if="item.count !== undefined"> ({{ item.count }})</template>
                 </option>
             </select>
             <select
@@ -101,7 +109,8 @@ function toggleSortDirection() {
             >
                 <option value="">Alle Tags</option>
                 <option v-for="item in tags" :key="item.slug" :value="item.slug">
-                    {{ item.name }}
+                    {{ item.name
+                    }}<template v-if="item.count !== undefined"> ({{ item.count }})</template>
                 </option>
             </select>
             <select
@@ -112,11 +121,46 @@ function toggleSortDirection() {
             >
                 <option value="">Alle Autoren</option>
                 <option v-for="item in authors" :key="item.slug" :value="item.slug">
-                    {{ authorName(item) }}
+                    {{ authorName(item)
+                    }}<template v-if="item.count !== undefined"> ({{ item.count }})</template>
                 </option>
             </select>
-            <button v-if="showReset" class="btn btn-ghost btn-sm lg:col-span-3 lg:justify-self-start" @click="$emit('reset')">
-                Zurücksetzen
+            <select
+                :value="locale"
+                class="select select-bordered select-sm w-full lg:w-full"
+                aria-label="Sprache auswählen"
+                @change="emit('update:locale', ($event.target as HTMLSelectElement).value)"
+            >
+                <option value="">Alle Sprachen</option>
+                <option v-for="item in locales" :key="item.code" :value="item.code">
+                    {{ item.name || item.code.toUpperCase()
+                    }}<template v-if="item.count !== undefined"> ({{ item.count }})</template>
+                </option>
+            </select>
+            <button
+                v-if="showReset"
+                type="button"
+                class="btn btn-ghost btn-square btn-sm"
+                aria-label="Filter zurücksetzen"
+                title="Filter zurücksetzen"
+                @click="emit('reset')"
+            >
+                <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    fill="currentColor"
+                    class="bi bi-arrow-counterclockwise"
+                    viewBox="0 0 16 16"
+                >
+                    <path
+                        fill-rule="evenodd"
+                        d="M8 3a5 5 0 1 1-4.546 2.914.5.5 0 0 0-.908-.417A6 6 0 1 0 8 2z"
+                    />
+                    <path
+                        d="M8 4.466V.534a.25.25 0 0 0-.41-.192L5.23 2.308a.25.25 0 0 0 0 .384l2.36 1.966A.25.25 0 0 0 8 4.466"
+                    />
+                </svg>
             </button>
         </div>
         <div class="mt-2 flex gap-2 lg:hidden">
@@ -133,7 +177,9 @@ function toggleSortDirection() {
             <button
                 type="button"
                 class="btn btn-square btn-sm"
-                :aria-label="sortDirection === 'asc' ? 'Aufsteigend sortiert' : 'Absteigend sortiert'"
+                :aria-label="
+                    sortDirection === 'asc' ? 'Aufsteigend sortiert' : 'Absteigend sortiert'
+                "
                 :title="sortDirection === 'asc' ? 'Aufsteigend sortiert' : 'Absteigend sortiert'"
                 @click="toggleSortDirection"
             >

@@ -2,13 +2,12 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-    fetchAuthors,
-    fetchCategories,
+    fetchFacets,
     fetchNote,
     fetchNotes,
-    fetchTags,
     type Author,
     type Note,
+    type Locale,
     type TaxonomyItem,
 } from '../api/content'
 import NoteCard from '../components/NoteCard.vue'
@@ -29,9 +28,11 @@ const categories = ref<TaxonomyItem[]>([])
 const authors = ref<Author[]>([])
 const total = ref(0)
 const search = ref('')
-const selectedTag = ref(filterFromRoute('tag'))
-const selectedCategory = ref(filterFromRoute('category'))
-const selectedAuthor = ref(filterFromRoute('author'))
+const selectedTag = ref(filterFromQuery('tag'))
+const selectedCategory = ref(filterFromQuery('category'))
+const selectedAuthor = ref(filterFromQuery('author'))
+const selectedLocale = ref(filterFromQuery('locale'))
+const locales = ref<Locale[]>([])
 const sortField = ref<SortField>('created_at')
 const sortDirection = ref<'asc' | 'desc'>('desc')
 const isLoading = ref(true)
@@ -47,19 +48,21 @@ const columnCount = ref(1)
 const listTop = ref(0)
 let searchTimer: ReturnType<typeof setTimeout> | undefined
 let requestVersion = 0
+let facetRequestVersion = 0
 let resizeObserver: ResizeObserver | undefined
 
+const ordering = computed(() => `${sortField.value} ${sortDirection.value.toUpperCase()}`)
 const showReset = computed(() =>
     Boolean(
         search.value ||
             selectedTag.value ||
             selectedCategory.value ||
             selectedAuthor.value ||
+            selectedLocale.value ||
             sortField.value !== 'created_at' ||
             sortDirection.value !== 'desc',
     ),
 )
-const ordering = computed(() => `${sortField.value} ${sortDirection.value.toUpperCase()}`)
 const hasMore = computed(() => notes.value.length < total.value)
 const noteRows = computed(() => {
     const rows: Note[][] = []
@@ -77,22 +80,40 @@ const visibleRows = computed(() => noteRows.value.slice(visibleRange.value.start
 const virtualHeight = computed(() => noteRows.value.length * rowHeight)
 const showScrollTop = computed(() => pageScrollY.value > 400)
 
-function filterFromRoute(kind: FilterKind) {
-    const value = route.params[kind]
+function filterFromQuery(kind: FilterKind | 'locale') {
+    const value = route.query[kind]
     return typeof value === 'string' ? value : ''
 }
 
 function selectFilter(kind: FilterKind, slug: string) {
-    selectedTag.value = kind === 'tag' ? slug : ''
-    selectedCategory.value = kind === 'category' ? slug : ''
-    selectedAuthor.value = kind === 'author' ? slug : ''
-    void router.push(slug ? { name: `notes-${kind}`, params: { [kind]: slug } } : { name: 'notes' })
+    if (kind === 'tag') selectedTag.value = slug
+    if (kind === 'category') selectedCategory.value = slug
+    if (kind === 'author') selectedAuthor.value = slug
+    syncFilterQuery()
+}
+
+function selectLocale(locale: string) {
+    selectedLocale.value = locale
+    syncFilterQuery()
+}
+
+function syncFilterQuery() {
+    const query = Object.fromEntries(
+        Object.entries({
+            category: selectedCategory.value,
+            tag: selectedTag.value,
+            author: selectedAuthor.value,
+            locale: selectedLocale.value,
+        }).filter(([, value]) => value),
+    )
+    void router.replace({ name: 'notes', query })
 }
 
 function syncRouteFilters() {
-    selectedTag.value = filterFromRoute('tag')
-    selectedCategory.value = filterFromRoute('category')
-    selectedAuthor.value = filterFromRoute('author')
+    selectedTag.value = filterFromQuery('tag')
+    selectedCategory.value = filterFromQuery('category')
+    selectedAuthor.value = filterFromQuery('author')
+    selectedLocale.value = filterFromQuery('locale')
 }
 
 async function loadNotes(reset = false) {
@@ -123,6 +144,7 @@ async function loadNotes(reset = false) {
             tag: selectedTag.value,
             category: selectedCategory.value,
             author: selectedAuthor.value,
+            locale: selectedLocale.value,
         })
         if (version !== requestVersion) return
 
@@ -150,15 +172,29 @@ function loadMore() {
 }
 
 async function loadFilters() {
-    const results = await Promise.allSettled([fetchTags(), fetchCategories(), fetchAuthors()])
-    if (results[0].status === 'fulfilled') tags.value = results[0].value.results
-    if (results[1].status === 'fulfilled') categories.value = results[1].value.results
-    if (results[2].status === 'fulfilled') authors.value = results[2].value.results
+    const version = ++facetRequestVersion
+    try {
+        const facets = await fetchFacets({
+            search: search.value.trim(),
+            tag: selectedTag.value,
+            category: selectedCategory.value,
+            author: selectedAuthor.value,
+            locale: selectedLocale.value,
+        })
+        if (version !== facetRequestVersion) return
+
+        tags.value = facets.tags
+        categories.value = facets.categories
+        authors.value = facets.authors
+        locales.value = facets.locales
+    } catch {
+        // Keep the existing options available if the optional facets request fails.
+    }
 }
 
 function submitSearch() {
     if (searchTimer) clearTimeout(searchTimer)
-    void loadNotes(true)
+    void Promise.all([loadNotes(true), loadFilters()])
 }
 
 function resetFilters() {
@@ -166,9 +202,10 @@ function resetFilters() {
     selectedTag.value = ''
     selectedCategory.value = ''
     selectedAuthor.value = ''
+    selectedLocale.value = ''
     sortField.value = 'created_at'
     sortDirection.value = 'desc'
-    void router.push({ name: 'notes' })
+    syncFilterQuery()
 }
 
 async function openNote(note: Note) {
@@ -180,7 +217,7 @@ async function openNote(note: Note) {
     isDetailLoading.value = true
     detailError.value = ''
     try {
-        activeNote.value = await fetchNote(note.slug)
+        activeNote.value = await fetchNote(note.slug, selectedLocale.value)
     } catch (cause) {
         detailError.value =
             cause instanceof Error ? cause.message : 'Die Notiz konnte nicht geladen werden.'
@@ -197,7 +234,7 @@ function closeNote() {
 
 function scheduleReload() {
     if (searchTimer) clearTimeout(searchTimer)
-    searchTimer = setTimeout(() => void loadNotes(true), 250)
+    searchTimer = setTimeout(() => void Promise.all([loadNotes(true), loadFilters()]), 250)
 }
 
 function updateVirtualList() {
@@ -228,7 +265,7 @@ function scrollToTop() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
-watch([search, selectedTag, selectedCategory, selectedAuthor, sortField, sortDirection], scheduleReload)
+watch([search, selectedTag, selectedCategory, selectedAuthor, selectedLocale, sortField, sortDirection], scheduleReload)
 watch(
     () => route.fullPath,
     syncRouteFilters,
@@ -270,15 +307,18 @@ onMounted(async () => {
             :tags="tags"
             :categories="categories"
             :authors="authors"
+            :locales="locales"
+            :locale="selectedLocale"
             :show-reset="showReset"
             @search="search = $event"
             @update:tag="selectFilter('tag', $event)"
             @update:category="selectFilter('category', $event)"
             @update:author="selectFilter('author', $event)"
+            @update:locale="selectLocale"
+            @reset="resetFilters"
             @update:sort-field="sortField = $event as SortField"
             @update:sort-direction="sortDirection = $event"
             @submit="submitSearch"
-            @reset="resetFilters"
         />
 
         <div v-if="error" role="alert" class="alert alert-error mb-8">
@@ -308,7 +348,6 @@ onMounted(async () => {
         <div v-else class="rounded-2xl border border-dashed border-base-300 bg-base-100 py-20 text-center">
             <p class="text-lg font-semibold">Keine Notizen gefunden</p>
             <p class="mt-1 text-base-content/60">Passe deine Suche oder Filter an.</p>
-            <button class="btn btn-ghost btn-sm mt-4" @click="resetFilters">Filter zurücksetzen</button>
         </div>
         <button
             v-if="showScrollTop"
