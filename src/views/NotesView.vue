@@ -16,7 +16,7 @@ import NoteModal from '../components/NoteModal.vue'
 
 type FilterKind = 'tag' | 'category' | 'author'
 type SortField = 'created_at' | 'title' | 'author.last_name'
-type QueryKey = FilterKind | 'locale' | 'search' | 'sort' | 'direction'
+type QueryKey = FilterKind | 'locale' | 'search' | 'sort' | 'direction' | 'note'
 
 const pageSize = 18
 const route = useRoute()
@@ -46,6 +46,7 @@ const facetError = ref('')
 let searchTimer: ReturnType<typeof setTimeout> | undefined
 let requestVersion = 0
 let facetRequestVersion = 0
+let detailRequestVersion = 0
 let notesController: AbortController | undefined
 let facetsController: AbortController | undefined
 let detailController: AbortController | undefined
@@ -99,6 +100,7 @@ function syncFilterQuery() {
             search: search.value.trim(),
             sort: sortField.value === 'created_at' ? '' : sortField.value,
             direction: sortDirection.value === 'desc' ? '' : sortDirection.value,
+            note: filterFromQuery('note'),
         }).filter(([, value]) => value),
     )
     void router.replace({ name: 'notes', query })
@@ -238,33 +240,72 @@ function resetFilters() {
     sortDirection.value = 'desc'
 }
 
-async function openNote(note: Note) {
-    if (!note.slug) {
+async function loadNoteDetail(slug: string) {
+    if (!slug) {
         detailError.value = 'Diese Notiz hat keinen gültigen Slug.'
         return
     }
 
     detailController?.abort()
+    const version = ++detailRequestVersion
     const controller = new AbortController()
     detailController = controller
     isDetailLoading.value = true
     detailError.value = ''
+    activeNote.value = null
     try {
-        activeNote.value = await fetchNote(note.slug, selectedLocale.value, controller.signal)
+        const note = await fetchNote(slug, selectedLocale.value, controller.signal)
+        if (version === detailRequestVersion) activeNote.value = note
     } catch (cause) {
-        if (cause instanceof Error && cause.name === 'AbortError') return
-        detailError.value =
-            cause instanceof Error ? cause.message : 'Die Notiz konnte nicht geladen werden.'
+        if (
+            version === detailRequestVersion &&
+            !(cause instanceof Error && cause.name === 'AbortError')
+        ) {
+            detailError.value =
+                cause instanceof Error ? cause.message : 'Die Notiz konnte nicht geladen werden.'
+        }
     } finally {
-        isDetailLoading.value = false
+        if (version === detailRequestVersion) isDetailLoading.value = false
     }
+}
+
+function openNote(note: Note) {
+    if (!note.slug) {
+        detailError.value = 'Diese Notiz hat keinen gültigen Slug.'
+        return
+    }
+
+    if (filterFromQuery('note') === note.slug) {
+        void loadNoteDetail(note.slug)
+        return
+    }
+    void router.push({ name: 'notes', query: { ...route.query, note: note.slug } })
 }
 
 function closeNote() {
     detailController?.abort()
+    detailRequestVersion += 1
     activeNote.value = null
     isDetailLoading.value = false
     detailError.value = ''
+    if (filterFromQuery('note')) {
+        const query = { ...route.query }
+        delete query.note
+        void router.replace({ name: 'notes', query })
+    }
+}
+
+function syncRouteNote() {
+    const slug = filterFromQuery('note')
+    if (!slug) {
+        detailController?.abort()
+        detailRequestVersion += 1
+        activeNote.value = null
+        isDetailLoading.value = false
+        detailError.value = ''
+        return
+    }
+    if (activeNote.value?.slug !== slug) void loadNoteDetail(slug)
 }
 
 function reloadData() {
@@ -308,7 +349,10 @@ watch(
 )
 watch(
     () => route.fullPath,
-    syncRouteFilters,
+    () => {
+        syncRouteFilters()
+        syncRouteNote()
+    },
 )
 onBeforeUnmount(() => {
     if (searchTimer) clearTimeout(searchTimer)
@@ -322,6 +366,7 @@ onMounted(() => {
     window.addEventListener('scroll', onWindowScroll, { passive: true })
     window.addEventListener('notes:created', reloadAfterNoteCreated)
     reloadData()
+    syncRouteNote()
 })
 </script>
 

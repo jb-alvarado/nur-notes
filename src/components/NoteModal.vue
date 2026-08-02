@@ -58,7 +58,6 @@ watch(
                                 query: { category: note.category.slug },
                             }"
                             class="badge badge-outline hover:border-primary hover:text-primary"
-                            @click="emit('close')"
                         >
                             {{ note.category.name || 'Allgemein' }}
                         </RouterLink>
@@ -74,7 +73,6 @@ watch(
                                 v-if="author.slug"
                                 :to="{ name: 'notes', query: { author: author.slug } }"
                                 class="link link-hover font-medium text-base-content"
-                                @click="emit('close')"
                             >
                                 {{ authorName(author) }}
                             </RouterLink>
@@ -93,7 +91,6 @@ watch(
                             :key="tag.slug"
                             :to="{ name: 'notes', query: { tag: tag.slug } }"
                             class="badge badge-ghost hover:border-primary hover:text-primary"
-                            @click="emit('close')"
                         >
                             #{{ tag.name }}
                         </RouterLink>
