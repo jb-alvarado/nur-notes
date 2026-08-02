@@ -281,11 +281,10 @@ async function insertTag(name: string) {
                         v-model="selectedAuthors"
                         track-by="id"
                         label="displayName"
-                        placeholder="Autoren auswählen"
-                        :options="authors"
-                        :multiple="true"
-                        :close-on-select="false"
-                        aria-label="Autoren auswählen"
+                            placeholder="Autoren auswählen"
+                            :options="authors"
+                            :multiple="true"
+                            aria-label="Autoren auswählen"
                     />
                 </fieldset>
                 <fieldset class="fieldset min-w-0">
@@ -312,7 +311,6 @@ async function insertTag(name: string) {
                         :options="tags"
                         :multiple="true"
                         :taggable="true"
-                        :close-on-select="false"
                         :loading="isCreatingTag"
                         :disabled="isCreatingTag"
                         aria-label="Tags auswählen"
