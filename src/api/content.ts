@@ -76,7 +76,7 @@ export interface FacetsResponse {
 }
 
 const apiBase = (import.meta.env.VITE_NUR_CMS_URL ?? '').replace(/\/$/, '')
-const noteType = import.meta.env.VITE_NUR_NOTE_TYPE ?? 'note'
+export const noteTypeSlug = import.meta.env.VITE_NUR_NOTE_TYPE ?? 'note'
 
 function url(path: string, params: Record<string, string | number | undefined> = {}) {
     const search = new URLSearchParams()
@@ -94,7 +94,7 @@ async function get<T>(path: string, params?: Record<string, string | number | un
 
 export function fetchNotes(query: NoteQuery, signal?: AbortSignal) {
     return get<ListResponse<Note>>('/api/content/entries', {
-        type: noteType,
+        type: noteTypeSlug,
         fields: 'id,title,slug,created_at,updated_at,media,category.name,category.slug,tags,author.first_name,author.last_name,author.slug,node.text,node.ast',
         ordering: '-created_at',
         character_limit: 420,
@@ -104,7 +104,7 @@ export function fetchNotes(query: NoteQuery, signal?: AbortSignal) {
 }
 
 export function fetchNote(slug: string, locale?: string, signal?: AbortSignal) {
-    return get<Note>(`/api/content/entries/${encodeURIComponent(noteType)}/${encodeURIComponent(slug)}`, {
+    return get<Note>(`/api/content/entries/${encodeURIComponent(noteTypeSlug)}/${encodeURIComponent(slug)}`, {
         locale,
         fields: 'id,title,slug,created_at,updated_at,media,category.name,category.slug,tags,author.first_name,author.last_name,author.slug,node.text,node.ast',
     }, signal)
@@ -112,7 +112,7 @@ export function fetchNote(slug: string, locale?: string, signal?: AbortSignal) {
 
 export function fetchFacets(query: Omit<NoteQuery, 'limit' | 'offset' | 'ordering'>, signal?: AbortSignal) {
     return get<FacetsResponse>('/api/content/entries/facets', {
-        type: noteType,
+        type: noteTypeSlug,
         ...query,
     }, signal)
 }

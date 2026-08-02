@@ -1,6 +1,6 @@
 <script setup lang="ts">
 defineProps<{ isDark: boolean }>()
-defineEmits<{ toggleTheme: [] }>()
+defineEmits<{ toggleTheme: []; createNote: [] }>()
 </script>
 
 <template>
@@ -24,6 +24,9 @@ defineEmits<{ toggleTheme: [] }>()
                     >Nur <span class="text-primary">Notes</span></span
                 >
             </RouterLink>
+            <button class="btn btn-ghost btn-circle" aria-label="Neue Notiz" title="Neue Notiz" @click="$emit('createNote')">
+                <svg viewBox="0 0 24 24" class="size-5 fill-none stroke-current" stroke-width="2"><path d="M12 5v14M5 12h14" /></svg>
+            </button>
             <button
                 class="btn btn-ghost btn-circle"
                 :aria-label="isDark ? 'Helles Design' : 'Dunkles Design'"

@@ -287,6 +287,10 @@ function scrollToTop() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
+function reloadAfterNoteCreated() {
+    reloadData()
+}
+
 watch(
     [
         search,
@@ -312,9 +316,11 @@ onBeforeUnmount(() => {
     facetsController?.abort()
     detailController?.abort()
     window.removeEventListener('scroll', onWindowScroll)
+    window.removeEventListener('notes:created', reloadAfterNoteCreated)
 })
 onMounted(() => {
     window.addEventListener('scroll', onWindowScroll, { passive: true })
+    window.addEventListener('notes:created', reloadAfterNoteCreated)
     reloadData()
 })
 </script>

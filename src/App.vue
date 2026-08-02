@@ -2,8 +2,10 @@
 import { ref, watch } from 'vue'
 import { RouterView } from 'vue-router'
 import AppHeader from './components/AppHeader.vue'
+import CreateNoteModal from './components/CreateNoteModal.vue'
 
 const isDark = ref(localStorage.theme === 'dark' || (!localStorage.theme && matchMedia('(prefers-color-scheme: dark)').matches))
+const isCreateNoteOpen = ref(false)
 
 function toggleTheme() {
     isDark.value = !isDark.value
@@ -15,7 +17,8 @@ watch(isDark, (dark) => (document.documentElement.dataset.theme = dark ? 'dark' 
 
 <template>
     <div class="min-h-screen bg-base-200 text-base-content">
-        <AppHeader :is-dark="isDark" @toggle-theme="toggleTheme" />
+        <AppHeader :is-dark="isDark" @toggle-theme="toggleTheme" @create-note="isCreateNoteOpen = true" />
         <RouterView />
+        <CreateNoteModal :open="isCreateNoteOpen" @close="isCreateNoteOpen = false" />
     </div>
 </template>
