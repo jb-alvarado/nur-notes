@@ -53,26 +53,33 @@ watch(
                     >
                         <RouterLink
                             v-if="note.category?.slug"
-                            :to="{ name: 'notes-category', params: { category: note.category.slug } }"
+                            :to="{
+                                name: 'notes',
+                                query: { category: note.category.slug },
+                            }"
                             class="badge badge-outline hover:border-primary hover:text-primary"
                             @click="emit('close')"
                         >
                             {{ note.category.name || 'Allgemein' }}
                         </RouterLink>
-                        <span v-else class="badge badge-outline">{{ note.category?.name || 'Allgemein' }}</span>
+                        <span v-else class="badge badge-outline">{{
+                            note.category?.name || 'Allgemein'
+                        }}</span>
                         <time>{{ formatDate(note.created_at) }}</time>
                     </div>
                     <div class="mb-4 flex items-center gap-2 text-sm text-base-content/60">
                         <span>Autor:</span>
-                        <RouterLink
-                            v-if="note.authors?.[0]?.slug"
-                            :to="{ name: 'notes-author', params: { author: note.authors[0].slug } }"
-                            class="link link-hover font-medium text-base-content"
-                            @click="emit('close')"
-                        >
-                            {{ authorName(note.authors[0]) }}
-                        </RouterLink>
-                        <span v-else>{{ authorName(note.authors?.[0]) }}</span>
+                        <template v-for="author in note.authors" :key="author.slug">
+                            <RouterLink
+                                v-if="author.slug"
+                                :to="{ name: 'notes', query: { author: author.slug } }"
+                                class="link link-hover font-medium text-base-content"
+                                @click="emit('close')"
+                            >
+                                {{ authorName(author) }}
+                            </RouterLink>
+                            <span v-else>{{ authorName(author) }}</span>
+                        </template>
                     </div>
                     <h2 class="text-2xl font-bold tracking-tight sm:text-3xl">
                         {{ note.title || 'Unbenannte Notiz' }}
@@ -80,11 +87,11 @@ watch(
                     <p class="mt-6 whitespace-pre-wrap leading-7 text-base-content/80">
                         {{ noteText(note) }}
                     </p>
-                    <div class="mt-7 flex flex-wrap gap-2">
+                    <div v-if="note.tags?.length" class="mt-7 flex flex-wrap gap-2">
                         <RouterLink
                             v-for="tag in note.tags"
                             :key="tag.slug"
-                            :to="{ name: 'notes-tag', params: { tag: tag.slug } }"
+                            :to="{ name: 'notes', query: { tag: tag.slug } }"
                             class="badge badge-ghost hover:border-primary hover:text-primary"
                             @click="emit('close')"
                         >

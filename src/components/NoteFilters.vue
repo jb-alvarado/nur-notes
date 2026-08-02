@@ -86,9 +86,7 @@ function toggleSortDirection() {
                 {{ sortDirection === 'asc' ? '↑' : '↓' }}
             </button>
         </form>
-        <div
-            class="mt-2 flex flex-wrap items-center gap-2 lg:grid lg:grid-cols-[repeat(3,minmax(0,1fr))_10rem_auto]"
-        >
+        <div class="hidden mt-2 lg:grid lg:grid-cols-[repeat(3,minmax(0,1fr))_10rem_auto] lg:gap-2">
             <select
                 :value="category"
                 class="select select-bordered select-sm w-full lg:w-full"
@@ -159,28 +157,77 @@ function toggleSortDirection() {
                 </svg>
             </button>
         </div>
-        <div class="mt-2 flex gap-2 lg:hidden">
-            <select
-                :value="sortField"
-                class="select select-bordered select-sm grow"
-                aria-label="Sortieren nach"
-                @change="emit('update:sortField', ($event.target as HTMLSelectElement).value)"
-            >
-                <option value="created_at">Erstelldatum</option>
-                <option value="title">Titel</option>
-                <option value="author.last_name">Autor</option>
-            </select>
-            <button
-                type="button"
-                class="btn btn-square btn-sm"
-                :aria-label="
-                    sortDirection === 'asc' ? 'Aufsteigend sortiert' : 'Absteigend sortiert'
-                "
-                :title="sortDirection === 'asc' ? 'Aufsteigend sortiert' : 'Absteigend sortiert'"
-                @click="toggleSortDirection"
-            >
-                {{ sortDirection === 'asc' ? '↑' : '↓' }}
-            </button>
-        </div>
+        <details class="collapse collapse-arrow mt-2 border border-base-300 bg-base-200 lg:hidden">
+            <summary class="collapse-title min-h-0 py-3 text-sm font-medium">Filter & Sortierung</summary>
+            <div class="collapse-content grid gap-2 pt-1">
+                <select
+                    :value="category"
+                    class="select select-bordered select-sm w-full"
+                    aria-label="Kategorie filtern"
+                    @change="emit('update:category', ($event.target as HTMLSelectElement).value)"
+                >
+                    <option value="">Alle Kategorien</option>
+                    <option v-for="item in categories" :key="item.slug" :value="item.slug">{{ item.name }} ({{ item.count }})</option>
+                </select>
+                <select
+                    :value="tag"
+                    class="select select-bordered select-sm w-full"
+                    aria-label="Tag filtern"
+                    @change="emit('update:tag', ($event.target as HTMLSelectElement).value)"
+                >
+                    <option value="">Alle Tags</option>
+                    <option v-for="item in tags" :key="item.slug" :value="item.slug">{{ item.name }} ({{ item.count }})</option>
+                </select>
+                <select
+                    :value="author"
+                    class="select select-bordered select-sm w-full"
+                    aria-label="Autor filtern"
+                    @change="emit('update:author', ($event.target as HTMLSelectElement).value)"
+                >
+                    <option value="">Alle Autoren</option>
+                    <option v-for="item in authors" :key="item.slug" :value="item.slug">{{ authorName(item) }} ({{ item.count }})</option>
+                </select>
+                <select
+                    :value="locale"
+                    class="select select-bordered select-sm w-full"
+                    aria-label="Sprache auswählen"
+                    @change="emit('update:locale', ($event.target as HTMLSelectElement).value)"
+                >
+                    <option value="">Alle Sprachen</option>
+                    <option v-for="item in locales" :key="item.code" :value="item.code">{{ item.name || item.code.toUpperCase() }} ({{ item.count }})</option>
+                </select>
+                <div class="flex gap-2">
+                    <select
+                        :value="sortField"
+                        class="select select-bordered select-sm grow"
+                        aria-label="Sortieren nach"
+                        @change="emit('update:sortField', ($event.target as HTMLSelectElement).value)"
+                    >
+                        <option value="created_at">Erstelldatum</option>
+                        <option value="title">Titel</option>
+                        <option value="author.last_name">Autor</option>
+                    </select>
+                    <button
+                        type="button"
+                        class="btn btn-square btn-sm"
+                        :aria-label="sortDirection === 'asc' ? 'Aufsteigend sortiert' : 'Absteigend sortiert'"
+                        :title="sortDirection === 'asc' ? 'Aufsteigend sortiert' : 'Absteigend sortiert'"
+                        @click="toggleSortDirection"
+                    >
+                        {{ sortDirection === 'asc' ? '↑' : '↓' }}
+                    </button>
+                    <button
+                        v-if="showReset"
+                        type="button"
+                        class="btn btn-ghost btn-square btn-sm"
+                        aria-label="Filter zurücksetzen"
+                        title="Filter zurücksetzen"
+                        @click="emit('reset')"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 3a5 5 0 1 1-4.546 2.914.5.5 0 0 0-.908-.417A6 6 0 1 0 8 2z" /><path d="M8 4.466V.534a.25.25 0 0 0-.41-.192L5.23 2.308a.25.25 0 0 0 0 .384l2.36 1.966A.25.25 0 0 0 8 4.466" /></svg>
+                    </button>
+                </div>
+            </div>
+        </details>
     </section>
 </template>

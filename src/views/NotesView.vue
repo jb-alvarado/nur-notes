@@ -104,6 +104,35 @@ function syncFilterQuery() {
     void router.replace({ name: 'notes', query })
 }
 
+function syncRouteFilters() {
+    const nextTag = filterFromQuery('tag')
+    const nextCategory = filterFromQuery('category')
+    const nextAuthor = filterFromQuery('author')
+    const nextLocale = filterFromQuery('locale')
+    const nextSearch = filterFromQuery('search')
+    const nextSortField = sortFieldFromQuery()
+    const nextSortDirection = sortDirectionFromQuery()
+
+    const isCurrentState =
+        selectedTag.value === nextTag &&
+        selectedCategory.value === nextCategory &&
+        selectedAuthor.value === nextAuthor &&
+        selectedLocale.value === nextLocale &&
+        search.value === nextSearch &&
+        sortField.value === nextSortField &&
+        sortDirection.value === nextSortDirection
+
+    if (isCurrentState) return
+
+    selectedTag.value = nextTag
+    selectedCategory.value = nextCategory
+    selectedAuthor.value = nextAuthor
+    selectedLocale.value = nextLocale
+    search.value = nextSearch
+    sortField.value = nextSortField
+    sortDirection.value = nextSortDirection
+}
+
 async function loadNotes(reset = false) {
     if (reset) {
         notesController?.abort()
@@ -273,6 +302,10 @@ watch(
         scheduleReload()
     },
 )
+watch(
+    () => route.fullPath,
+    syncRouteFilters,
+)
 onBeforeUnmount(() => {
     if (searchTimer) clearTimeout(searchTimer)
     notesController?.abort()
@@ -290,8 +323,8 @@ onMounted(() => {
     <main class="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
         <section class="mb-4 flex flex-col justify-between gap-5 md:flex-row md:items-end">
             <div>
-                <h1 class="text-3xl font-bold tracking-tight sm:text-4xl">
-                    Zitat- und Gedankensammlung
+                <h1 class="text-2xl lg:text-3xl font-bold tracking-tight sm:text-4xl">
+                    Zitate & Gedanken
                 </h1>
             </div>
             <p class="text-sm text-base-content/60">
