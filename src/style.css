@@ -79,9 +79,16 @@ body {
     margin-bottom: 0;
 }
 
+.multiselect .multiselect__tags {
+    padding: 8px 40px 7px 8px;
+}
+
 .multiselect--active .multiselect__tags {
     outline: 2px solid color-mix(in oklab, var(--color-base-content) 30%, transparent);
     outline-offset: 2px;
+    isolation: isolate;
+    @apply flex flex-row items-center;
+    padding: 7px 40px 7px 8px;
 }
 
 .multiselect .multiselect__tag-icon::after {
