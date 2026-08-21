@@ -32,7 +32,10 @@ export default defineConfig({
 
                 runtimeCaching: [
                     {
-                        urlPattern: /\/api\/content\/.*/i,
+                        urlPattern: ({ url, request }) =>
+                            request.method === 'GET' &&
+                            !request.headers.has('authorization') &&
+                            /^\/api\/content\/entries(?:\/[^/]+\/[^/]+)?$/.test(url.pathname),
                         handler: 'NetworkFirst',
                         options: {
                             cacheName: 'nur-cms-api',

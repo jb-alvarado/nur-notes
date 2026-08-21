@@ -6,10 +6,23 @@ import { useCmsAuth } from '../composables/useCmsAuth'
 
 type ContentType = { id?: number; slug?: string }
 type ContentLocale = { id?: number; code?: string; name?: string }
-type AuthorOption = { id: number; first_name?: string; last_name?: string; slug?: string; displayName: string }
+type AuthorOption = {
+    id: number
+    first_name?: string
+    last_name?: string
+    slug?: string
+    displayName: string
+}
 type CategoryOption = { id: number; locale_id?: number; name?: string; slug?: string }
 type TagOption = { id: number; name: string; slug: string }
-type EditableNode = { id?: number; name?: string; text?: string; media_id?: number; data?: unknown; blocks?: EditableNode[] }
+type EditableNode = {
+    id?: number
+    name?: string
+    text?: string
+    media_id?: number
+    data?: unknown
+    blocks?: EditableNode[]
+}
 type EditableEntry = {
     id?: number
     title?: string
@@ -71,29 +84,46 @@ function resetForm() {
 }
 
 async function loadCreationOptions() {
-    const [typeResponse, localeResponse, authorResponse, categoryResponse, tagResponse] = await Promise.all([
-        auth.authenticatedFetch('/api/content/types?fields=id,slug&limit=200'),
-        auth.authenticatedFetch('/api/locales?fields=id,code,name&limit=200'),
-        auth.authenticatedFetch('/api/content/authors?fields=id,first_name,last_name,slug&limit=200&ordering=last_name'),
-        auth.authenticatedFetch('/api/content/categories?fields=id,locale_id,name,slug&limit=200&ordering=name'),
-        auth.authenticatedFetch('/api/content/tags?fields=id,name,slug&limit=200&ordering=name'),
+    const [typeList, localeList, authorList, categoryList, tagList] = await Promise.all([
+        fetchAll<ContentType>('/api/content/types?fields=id,slug'),
+        fetchAll<ContentLocale>('/api/locales?fields=id,code,name'),
+        fetchAll<Omit<AuthorOption, 'displayName'>>(
+            '/api/content/authors?fields=id,first_name,last_name,slug&ordering=last_name',
+        ),
+        fetchAll<CategoryOption>('/api/content/categories?fields=id,locale_id,name,slug&ordering=name'),
+        fetchAll<TagOption>('/api/content/tags?fields=id,name,slug&ordering=name'),
     ])
-    const types = (await typeResponse.json()) as ListResponse<ContentType>
-    const localeList = (await localeResponse.json()) as ListResponse<ContentLocale>
-    const authorList = (await authorResponse.json()) as ListResponse<Omit<AuthorOption, 'displayName'>>
-    const categoryList = (await categoryResponse.json()) as ListResponse<CategoryOption>
-    const tagList = (await tagResponse.json()) as ListResponse<TagOption>
-    const type = types.results.find((item) => item.slug === noteTypeSlug)
+    const type = typeList.find((item) => item.slug === noteTypeSlug)
     if (!type?.id) throw new Error(`Der CMS-Inhaltstyp „${noteTypeSlug}“ wurde nicht gefunden.`)
 
-    locales.value = localeList.results
-    authors.value = authorList.results.map((author) => ({
+    locales.value = localeList
+    authors.value = authorList.map((author) => ({
         ...author,
         displayName: [author.first_name, author.last_name].filter(Boolean).join(' '),
     }))
-    categories.value = categoryList.results
-    tags.value = tagList.results
+    categories.value = categoryList
+    tags.value = tagList
     return type.id
+}
+
+async function fetchAll<T>(path: string): Promise<T[]> {
+    const results: T[] = []
+    const pageSize = 200
+    let offset = 0
+    let count = 0
+    let received = 0
+
+    do {
+        const separator = path.includes('?') ? '&' : '?'
+        const response = await auth.authenticatedFetch(`${path}${separator}limit=${pageSize}&offset=${offset}`)
+        const page = (await response.json()) as ListResponse<T>
+        results.push(...page.results)
+        received = page.results.length
+        offset += received
+        count = page.count
+    } while (offset < count && received > 0)
+
+    return results
 }
 
 function optionById<T extends { id: number }>(options: T[], option?: { id?: number }) {
@@ -110,7 +140,8 @@ async function loadNoteForEditing(id: number) {
 
     title.value = entry.title ?? ''
     localeId.value = entry.locale_id ?? null
-    selectedCategory.value = categories.value.find((category) => category.id === entry.category_id) ?? null
+    selectedCategory.value =
+        categories.value.find((category) => category.id === entry.category_id) ?? null
     selectedAuthors.value = (entry.authors ?? [])
         .map((author) => optionById(authors.value, author))
         .filter((author): author is AuthorOption => Boolean(author))
@@ -131,28 +162,26 @@ watch(localeId, () => {
     }
 })
 
-watch(
-    [() => props.open, () => props.note?.id],
-    async ([open]) => {
-        if (!open) return
-        error.value = ''
-        isLoading.value = true
-        try {
-            if (await auth.inspect()) {
-                auth.resetVerification()
-                noteTypeId = await loadCreationOptions()
-                resetForm()
-                if (props.note?.id) await loadNoteForEditing(props.note.id)
-            } else {
-                auth.resetVerification()
-            }
-        } catch (cause) {
-            error.value = cause instanceof Error ? cause.message : 'Anmeldung konnte nicht geprüft werden.'
-        } finally {
-            isLoading.value = false
+watch([() => props.open, () => props.note?.id], async ([open]) => {
+    if (!open) return
+    error.value = ''
+    isLoading.value = true
+    try {
+        if (await auth.inspect()) {
+            auth.resetVerification()
+            noteTypeId = await loadCreationOptions()
+            resetForm()
+            if (props.note?.id) await loadNoteForEditing(props.note.id)
+        } else {
+            auth.resetVerification()
         }
-    },
-)
+    } catch (cause) {
+        error.value =
+            cause instanceof Error ? cause.message : 'Anmeldung konnte nicht geprüft werden.'
+    } finally {
+        isLoading.value = false
+    }
+})
 
 async function login() {
     isLoading.value = true
@@ -194,26 +223,38 @@ async function updateRelations(entryId: number) {
     const previousTagIds = new Set(originalTagIds.value)
     const previousAuthorIds = new Set(originalAuthorIds.value)
     await Promise.all([
-        ...originalTagIds.value.filter((id) => !currentTagIds.has(id)).map((id) =>
-            auth.authenticatedFetch(`/api/content/entries/${entryId}/tag/${id}`, { method: 'DELETE' }),
-        ),
-        ...selectedTags.value.filter((tag) => !previousTagIds.has(tag.id)).map((tag) =>
-            auth.authenticatedFetch('/api/content/entries/tag', {
-                method: 'POST',
-                headers: { 'content-type': 'application/json' },
-                body: JSON.stringify({ entry_id: entryId, tag_id: tag.id }),
-            }),
-        ),
-        ...originalAuthorIds.value.filter((id) => !currentAuthorIds.has(id)).map((id) =>
-            auth.authenticatedFetch(`/api/content/entries/${entryId}/author/${id}`, { method: 'DELETE' }),
-        ),
-        ...selectedAuthors.value.filter((author) => !previousAuthorIds.has(author.id)).map((author) =>
-            auth.authenticatedFetch('/api/content/entries/author', {
-                method: 'POST',
-                headers: { 'content-type': 'application/json' },
-                body: JSON.stringify({ entry_id: entryId, author_id: author.id }),
-            }),
-        ),
+        ...originalTagIds.value
+            .filter((id) => !currentTagIds.has(id))
+            .map((id) =>
+                auth.authenticatedFetch(`/api/content/entries/${entryId}/tag/${id}`, {
+                    method: 'DELETE',
+                }),
+            ),
+        ...selectedTags.value
+            .filter((tag) => !previousTagIds.has(tag.id))
+            .map((tag) =>
+                auth.authenticatedFetch('/api/content/entries/tag', {
+                    method: 'POST',
+                    headers: { 'content-type': 'application/json' },
+                    body: JSON.stringify({ entry_id: entryId, tag_id: tag.id }),
+                }),
+            ),
+        ...originalAuthorIds.value
+            .filter((id) => !currentAuthorIds.has(id))
+            .map((id) =>
+                auth.authenticatedFetch(`/api/content/entries/${entryId}/author/${id}`, {
+                    method: 'DELETE',
+                }),
+            ),
+        ...selectedAuthors.value
+            .filter((author) => !previousAuthorIds.has(author.id))
+            .map((author) =>
+                auth.authenticatedFetch('/api/content/entries/author', {
+                    method: 'POST',
+                    headers: { 'content-type': 'application/json' },
+                    body: JSON.stringify({ entry_id: entryId, author_id: author.id }),
+                }),
+            ),
     ])
 }
 
@@ -257,7 +298,9 @@ async function saveNote() {
             })
             await updateRelations(entryId)
             window.dispatchEvent(
-                new CustomEvent('notes:updated', { detail: { oldSlug: props.note?.slug, newSlug: noteSlug } }),
+                new CustomEvent('notes:updated', {
+                    detail: { oldSlug: props.note?.slug, newSlug: noteSlug },
+                }),
             )
         } else {
             const response = await auth.authenticatedFetch('/api/content/entries', {
@@ -271,7 +314,8 @@ async function saveNote() {
         }
         emit('close')
     } catch (cause) {
-        error.value = cause instanceof Error ? cause.message : 'Notiz konnte nicht gespeichert werden.'
+        error.value =
+            cause instanceof Error ? cause.message : 'Notiz konnte nicht gespeichert werden.'
     } finally {
         isLoading.value = false
     }
@@ -301,7 +345,8 @@ async function insertTag(name: string) {
         (tag) => tag.name.localeCompare(normalizedName, undefined, { sensitivity: 'accent' }) === 0,
     )
     if (existingTag) {
-        if (!selectedTags.value.some((tag) => tag.id === existingTag.id)) selectedTags.value.push(existingTag)
+        if (!selectedTags.value.some((tag) => tag.id === existingTag.id))
+            selectedTags.value.push(existingTag)
         return
     }
 
@@ -327,7 +372,9 @@ async function insertTag(name: string) {
 
 <template>
     <dialog class="modal modal-bottom sm:modal-middle" :open="open" @click.self="emit('close')">
-        <div class="modal-box max-h-[92dvh] w-full max-w-2xl overflow-y-auto rounded-t-2xl p-5 sm:rounded-2xl sm:p-6">
+        <div
+            class="modal-box max-h-[92dvh] w-full max-w-2xl overflow-y-auto rounded-t-2xl p-5 sm:rounded-2xl sm:p-6"
+        >
             <div class="absolute right-3 top-3 flex gap-1">
                 <button
                     v-if="isEditing && isLogin"
@@ -338,56 +385,144 @@ async function insertTag(name: string) {
                     :disabled="isLoading"
                     @click="deleteNote"
                 >
-                    <svg viewBox="0 0 24 24" aria-hidden="true" class="size-4 fill-none stroke-current stroke-2">
+                    <svg
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                        class="size-4 fill-none stroke-current stroke-2"
+                    >
                         <path d="M3 6h18" />
                         <path d="M8 6V4h8v2" />
                         <path d="M19 6l-1 14H6L5 6" />
                         <path d="M10 11v5M14 11v5" />
                     </svg>
                 </button>
-                <button class="btn btn-sm btn-circle btn-ghost" aria-label="Schließen" @click="emit('close')">✕</button>
+                <button
+                    class="btn btn-sm btn-circle btn-ghost"
+                    aria-label="Schließen"
+                    @click="emit('close')"
+                >
+                    ✕
+                </button>
             </div>
             <h2 class="text-xl font-bold">{{ isEditing ? 'Notiz bearbeiten' : 'Neue Notiz' }}</h2>
-            <p v-if="!isLogin" class="mt-2 text-sm text-base-content/60">Melde dich an, um eine Notiz zu {{ isEditing ? 'bearbeiten' : 'erstellen' }}.</p>
-            <div v-if="error" class="alert alert-error mt-4 text-sm"><span>{{ error }}</span></div>
-            <div v-if="isLoading" class="mt-6 flex justify-center"><span class="loading loading-spinner loading-md"></span></div>
+            <p v-if="!isLogin" class="mt-2 text-sm text-base-content/60">
+                Melde dich an, um eine Notiz zu {{ isEditing ? 'bearbeiten' : 'erstellen' }}.
+            </p>
+            <div v-if="error" class="alert alert-error mt-4 text-sm">
+                <span>{{ error }}</span>
+            </div>
+            <div v-if="isLoading" class="mt-6 flex justify-center">
+                <span class="loading loading-spinner loading-md"></span>
+            </div>
             <form v-else-if="isLogin" class="mt-5 grid gap-3" @submit.prevent="saveNote">
-                <input v-model="title" class="input input-bordered w-full" placeholder="Titel" required />
+                <input
+                    v-model="title"
+                    class="input input-bordered w-full"
+                    placeholder="Titel"
+                    required
+                />
                 <fieldset class="fieldset min-w-0">
                     <legend class="fieldset-legend">Sprache</legend>
-                    <select v-model="localeId" class="select select-bordered w-full" aria-label="Sprache auswählen" required>
+                    <select
+                        v-model="localeId"
+                        class="select select-bordered w-full"
+                        aria-label="Sprache auswählen"
+                        required
+                    >
                         <option :value="null" disabled>Sprache auswählen</option>
-                        <option v-for="locale in locales" :key="locale.id" :value="locale.id">{{ locale.name || locale.code }}</option>
+                        <option v-for="locale in locales" :key="locale.id" :value="locale.id">
+                            {{ locale.name || locale.code }}
+                        </option>
                     </select>
                 </fieldset>
                 <div class="grid gap-3 sm:grid-cols-2">
                     <fieldset class="fieldset min-w-0">
                         <legend class="fieldset-legend">Autoren</legend>
-                        <Multiselect v-model="selectedAuthors" track-by="id" label="displayName" placeholder="Autoren auswählen" :options="authors" :multiple="true" aria-label="Autoren auswählen" />
+                        <Multiselect
+                            v-model="selectedAuthors"
+                            track-by="id"
+                            label="displayName"
+                            placeholder="Autoren auswählen"
+                            :options="authors"
+                            :multiple="true"
+                            aria-label="Autoren auswählen"
+                        />
                     </fieldset>
                     <fieldset class="fieldset min-w-0">
                         <legend class="fieldset-legend">Kategorie</legend>
-                        <Multiselect v-model="selectedCategory" track-by="id" label="name" placeholder="Kategorie auswählen" :options="availableCategories" :allow-empty="true" aria-label="Kategorie auswählen" />
+                        <Multiselect
+                            v-model="selectedCategory"
+                            track-by="id"
+                            label="name"
+                            placeholder="Kategorie auswählen"
+                            :options="availableCategories"
+                            :allow-empty="true"
+                            aria-label="Kategorie auswählen"
+                        />
                     </fieldset>
                 </div>
                 <fieldset class="fieldset min-w-0">
                     <legend class="fieldset-legend">Tags</legend>
-                    <Multiselect v-model="selectedTags" track-by="id" label="name" placeholder="Tags auswählen oder neu anlegen" tag-placeholder="Neuen Tag anlegen" :options="tags" :multiple="true" :taggable="true" :loading="isCreatingTag" :disabled="isCreatingTag" aria-label="Tags auswählen" @tag="insertTag" />
+                    <Multiselect
+                        v-model="selectedTags"
+                        track-by="id"
+                        label="name"
+                        placeholder="Tags auswählen oder neu anlegen"
+                        tag-placeholder="Neuen Tag anlegen"
+                        :options="tags"
+                        :multiple="true"
+                        :taggable="true"
+                        :loading="isCreatingTag"
+                        :disabled="isCreatingTag"
+                        aria-label="Tags auswählen"
+                        @tag="insertTag"
+                    />
                 </fieldset>
-                <textarea v-model="text" class="textarea textarea-bordered min-h-36 w-full sm:min-h-44" placeholder="Deine Notiz …" required></textarea>
-                <button class="btn btn-primary">{{ isEditing ? 'Änderungen speichern' : 'Notiz veröffentlichen' }}</button>
+                <textarea
+                    v-model="text"
+                    class="textarea textarea-bordered min-h-36 w-full sm:min-h-44"
+                    placeholder="Deine Notiz …"
+                    required
+                ></textarea>
+                <button class="btn btn-primary">
+                    {{ isEditing ? 'Änderungen speichern' : 'Notiz veröffentlichen' }}
+                </button>
             </form>
             <form v-else-if="verificationPending" class="mt-5 grid gap-3" @submit.prevent="verify">
-                <p class="text-sm text-base-content/60">Gib den zugesandten Verifizierungscode ein.</p>
-                <input v-model="code" class="input input-bordered w-full" autocomplete="one-time-code" inputmode="numeric" placeholder="Verifizierungscode" required />
+                <p class="text-sm text-base-content/60">
+                    Gib den zugesandten Verifizierungscode ein.
+                </p>
+                <input
+                    v-model="code"
+                    class="input input-bordered w-full"
+                    autocomplete="one-time-code"
+                    inputmode="numeric"
+                    placeholder="Verifizierungscode"
+                    required
+                />
                 <button class="btn btn-primary">Code bestätigen</button>
             </form>
             <form v-else class="mt-5 grid gap-3" @submit.prevent="login">
-                <input v-model="username" class="input input-bordered w-full" autocomplete="username" placeholder="Benutzername oder E-Mail" required />
-                <input v-model="password" class="input input-bordered w-full" type="password" autocomplete="current-password" placeholder="Passwort" required />
+                <input
+                    v-model="username"
+                    class="input input-bordered w-full"
+                    autocomplete="username"
+                    placeholder="Benutzername oder E-Mail"
+                    required
+                />
+                <input
+                    v-model="password"
+                    class="input input-bordered w-full"
+                    type="password"
+                    autocomplete="current-password"
+                    placeholder="Passwort"
+                    required
+                />
                 <button class="btn btn-primary">Anmelden</button>
             </form>
         </div>
-        <form method="dialog" class="modal-backdrop"><button @click="emit('close')">schließen</button></form>
+        <form method="dialog" class="modal-backdrop">
+            <button @click="emit('close')">schließen</button>
+        </form>
     </dialog>
 </template>
