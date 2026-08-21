@@ -1,34 +1,49 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
 import type { Note } from '../api/content'
+import { useCmsAuth } from '../composables/useCmsAuth'
 import { authorName, formatDate, noteImage, noteText } from '../utils/note'
 
 const props = defineProps<{ note: Note | null; isLoading: boolean; error: string }>()
-const emit = defineEmits<{ close: [] }>()
+const emit = defineEmits<{ close: []; edit: [note: Note] }>()
+const auth = useCmsAuth()
+const { isLogin } = auth
 const image = computed(() => (props.note ? noteImage(props.note) : null))
 
 watch(
     () => Boolean(props.note || props.isLoading || props.error),
-    (isOpen) => {
+    async (isOpen) => {
         document.body.style.overflow = isOpen ? 'hidden' : ''
+        if (isOpen) await auth.inspect()
     },
 )
 </script>
 
 <template>
-    <dialog
-        class="modal"
-        :open="note !== null || isLoading || Boolean(error)"
-        @click.self="emit('close')"
-    >
+    <dialog class="modal" :open="note !== null || isLoading || Boolean(error)" @click.self="emit('close')">
         <div class="modal-box max-w-3xl p-0">
-            <button
-                class="btn btn-sm btn-circle btn-ghost absolute right-3 top-3 z-10 bg-base-100/80 text-xl"
-                aria-label="Dialog schließen"
-                @click="emit('close')"
-            >
-                ✕
-            </button>
+            <div class="absolute right-3 top-3 z-10 flex gap-1">
+                <button
+                    v-if="note && isLogin"
+                    class="btn btn-sm btn-circle btn-ghost bg-base-100/80"
+                    type="button"
+                    aria-label="Notiz bearbeiten"
+                    title="Notiz bearbeiten"
+                    @click="emit('edit', note)"
+                >
+                    <svg viewBox="0 0 24 24" aria-hidden="true" class="size-4 fill-none stroke-current stroke-2">
+                        <path d="M12 20h9" />
+                        <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z" />
+                    </svg>
+                </button>
+                <button
+                    class="btn btn-sm btn-circle btn-ghost bg-base-100/80 text-xl"
+                    aria-label="Dialog schließen"
+                    @click="emit('close')"
+                >
+                    ✕
+                </button>
+            </div>
             <div v-if="isLoading" class="p-8">
                 <div class="h-7 w-2/3 animate-pulse rounded bg-base-300"></div>
                 <div class="mt-6 h-48 animate-pulse rounded bg-base-300"></div>
@@ -48,22 +63,15 @@ watch(
                     />
                 </figure>
                 <article class="p-6 sm:p-8">
-                    <div
-                        class="mb-4 flex flex-wrap items-center gap-2 text-sm text-base-content/60"
-                    >
+                    <div class="mb-4 flex flex-wrap items-center gap-2 text-sm text-base-content/60">
                         <RouterLink
                             v-if="note.category?.slug"
-                            :to="{
-                                name: 'notes',
-                                query: { category: note.category.slug },
-                            }"
+                            :to="{ name: 'notes', query: { category: note.category.slug } }"
                             class="badge badge-outline hover:border-primary hover:text-primary"
                         >
                             {{ note.category.name || 'Allgemein' }}
                         </RouterLink>
-                        <span v-else class="badge badge-outline">{{
-                            note.category?.name || 'Allgemein'
-                        }}</span>
+                        <span v-else class="badge badge-outline">{{ note.category?.name || 'Allgemein' }}</span>
                         <time>{{ formatDate(note.created_at) }}</time>
                     </div>
                     <div class="mb-4 flex items-center gap-2 text-sm text-base-content/60">

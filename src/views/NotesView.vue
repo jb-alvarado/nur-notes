@@ -308,6 +308,19 @@ function syncRouteNote() {
     if (activeNote.value?.slug !== slug) void loadNoteDetail(slug)
 }
 
+function openNoteEditor(note: Note) {
+    window.dispatchEvent(new CustomEvent<Note>('notes:edit', { detail: note }))
+    closeNote()
+}
+
+function reloadAfterNoteUpdated(event: Event) {
+    const { oldSlug, newSlug } = (event as CustomEvent<{ oldSlug?: string; newSlug: string }>).detail
+    if (filterFromQuery('note') === oldSlug) {
+        void router.replace({ name: 'notes', query: { ...route.query, note: newSlug } })
+    }
+    reloadData()
+}
+
 function reloadData() {
     void Promise.all([loadNotes(true), loadFilters()])
 }
@@ -361,10 +374,14 @@ onBeforeUnmount(() => {
     detailController?.abort()
     window.removeEventListener('scroll', onWindowScroll)
     window.removeEventListener('notes:created', reloadAfterNoteCreated)
+    window.removeEventListener('notes:updated', reloadAfterNoteUpdated)
+    window.removeEventListener('notes:deleted', reloadAfterNoteCreated)
 })
 onMounted(() => {
     window.addEventListener('scroll', onWindowScroll, { passive: true })
     window.addEventListener('notes:created', reloadAfterNoteCreated)
+    window.addEventListener('notes:updated', reloadAfterNoteUpdated)
+    window.addEventListener('notes:deleted', reloadAfterNoteCreated)
     reloadData()
     syncRouteNote()
 })
@@ -453,6 +470,7 @@ onMounted(() => {
             :is-loading="isDetailLoading"
             :error="detailError"
             @close="closeNote"
+            @edit="openNoteEditor"
         />
     </main>
 </template>
