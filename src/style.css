@@ -37,23 +37,28 @@ body {
 .multiselect .multiselect__tags,
 .multiselect .multiselect__input,
 .multiselect .multiselect__single,
-.multiselect .multiselect__content-wrapper {
+.multiselect .multiselect__content-wrapper,
+.notes-tag-dropdown {
     background: var(--color-base-100);
     color: var(--color-base-content);
 }
 
 .multiselect .multiselect__tags,
-.multiselect .multiselect__content-wrapper {
+.multiselect .multiselect__content-wrapper,
+.notes-tag-dropdown {
     border-color: color-mix(in oklab, var(--color-base-content) 20%, transparent);
 }
 
 .multiselect .multiselect__option--highlight,
-.multiselect .multiselect__option--highlight::after {
+.multiselect .multiselect__option--highlight::after,
+.notes-tag-dropdown .multiselect__option--highlight,
+.notes-tag-dropdown .multiselect__option--highlight::after {
     background: var(--color-base-200);
     color: var(--color-base-content);
 }
 
-.multiselect .multiselect__option--selected {
+.multiselect .multiselect__option--selected,
+.notes-tag-dropdown .multiselect__option--selected {
     background: var(--color-base-300);
     color: var(--color-base-content);
 }

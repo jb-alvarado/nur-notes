@@ -474,6 +474,8 @@ async function insertTag(name: string) {
                         :taggable="true"
                         :loading="isCreatingTag"
                         :disabled="isCreatingTag"
+                        :use-teleport="true"
+                        content-wrapper-class="notes-tag-dropdown"
                         aria-label="Tags auswählen"
                         @tag="insertTag"
                     />
