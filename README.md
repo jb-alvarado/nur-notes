@@ -1,6 +1,6 @@
 # nur-notes
 
-A responsive card-based view for content from **nur-cms**. The application uses Vue 3,
+A responsive card-based view for content from [**nur-cms**](https://github.com/jb-alvarado/nur-cms). The application uses Vue 3,
 Tailwind CSS, and DaisyUI, and supports full-text search, filters by category, tag, and author,
 pagination, and light and dark themes. It is built as a PWA and can be installed on supported devices.
 
