@@ -1,20 +1,24 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { Note } from '../api/content'
 import { authorName, formatDate, noteExcerpt, noteImage } from '../utils/note'
 
 const props = defineProps<{ note: Note }>()
+const { t } = useI18n()
 const emit = defineEmits<{ select: [note: Note] }>()
 const image = computed(() => noteImage(props.note))
 const excerpt = computed(() => noteExcerpt(props.note, image.value ? 170 : 340))
 </script>
 
 <template>
-    <article class="card h-full overflow-hidden border border-base-300 bg-base-100 shadow-sm hover:-translate-y-2 duration-200 transition-all">
+    <article
+        class="card h-full overflow-hidden border border-base-300 bg-base-100 shadow-sm hover:-translate-y-2 duration-200 transition-all"
+    >
         <button
             class="flex h-full w-full flex-col text-left cursor-pointer"
             type="button"
-            :aria-label="`Notiz ${note.title || 'öffnen'}`"
+            :aria-label="t('notes.open', { title: note.title || t('common.untitled') })"
             @click="emit('select', note)"
         >
             <figure v-if="image" class="h-36 shrink-0 bg-base-200">
@@ -32,12 +36,12 @@ const excerpt = computed(() => noteExcerpt(props.note, image.value ? 170 : 340))
             <div class="card-body flex flex-1 flex-col gap-3 p-5">
                 <div class="flex items-center justify-between gap-2 text-xs text-base-content/55">
                     <span class="badge badge-outline badge-sm">{{
-                        note.category?.name || 'Allgemein'
+                        note.category?.name || t('common.general')
                     }}</span
                     ><time>{{ formatDate(note.created_at) }}</time>
                 </div>
                 <h2 class="card-title text-xl leading-tight">
-                    {{ note.title || 'Unbenannte Notiz' }}
+                    {{ note.title || t('common.untitled') }}
                 </h2>
                 <p class="text-sm leading-6 text-base-content/65">{{ excerpt }}</p>
                 <div class="mt-auto flex flex-wrap gap-1.5 pt-2">
@@ -55,7 +59,9 @@ const excerpt = computed(() => noteExcerpt(props.note, image.value ? 170 : 340))
                         v-if="note.authors?.length"
                         class="grid size-6 place-items-center rounded-full bg-secondary/20 text-secondary"
                         >{{ authorName(note.authors[0]).slice(0, 1) }}</span
-                    ><template v-if="note.authors?.length">{{ authorName(note.authors[0]) }}</template>
+                    ><template v-if="note.authors?.length">{{
+                        authorName(note.authors[0])
+                    }}</template>
                 </div>
             </div>
         </button>

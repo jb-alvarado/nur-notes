@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import { LocalizedError } from '../utils/localizedError'
 
 type TokenResponse = { access?: string; refresh?: string }
 type JwtPayload = { exp?: number; id?: number; role?: string; token_type?: string }
@@ -11,7 +12,7 @@ let refreshRequest: Promise<boolean> | null = null
 
 function decodeToken(token: string): JwtPayload {
     const payload = token.split('.')[1]
-    if (!payload) throw new Error('Ungültiger Token.')
+    if (!payload) throw new LocalizedError('auth.invalidToken')
     const normalized = payload.replace(/-/g, '+').replace(/_/g, '/')
     const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=')
     return JSON.parse(atob(padded)) as JwtPayload
@@ -21,7 +22,7 @@ function updateTokens(access: string, refresh: string) {
     const decodedAccess = decodeToken(access)
     const decodedRefresh = decodeToken(refresh)
     if (decodedAccess.token_type !== 'access' || decodedRefresh.token_type !== 'refresh') {
-        throw new Error('Ungültige Token-Typen.')
+        throw new LocalizedError('auth.invalidTypes')
     }
 
     localStorage.setItem('token', access)
@@ -125,7 +126,7 @@ export function useCmsAuth() {
             body: JSON.stringify({ username, password }),
         })
         const data = await tokenData(response)
-        if (!response.ok) throw new Error('Benutzername oder Passwort ist nicht korrekt.')
+        if (!response.ok) throw new LocalizedError('auth.invalidCredentials')
 
         if (data.access && data.refresh) {
             updateTokens(data.access, data.refresh)
@@ -143,7 +144,7 @@ export function useCmsAuth() {
         })
         const data = await tokenData(response)
         if (!response.ok || !data.access || !data.refresh) {
-            throw new Error('Der Verifizierungscode ist nicht korrekt.')
+            throw new LocalizedError('auth.invalidCode')
         }
         updateTokens(data.access, data.refresh)
     }
@@ -154,7 +155,7 @@ export function useCmsAuth() {
 
     async function authenticatedFetch(input: string, init: RequestInit = {}) {
         await inspect()
-        if (!isLogin.value) throw new Error('Bitte melde dich an.')
+        if (!isLogin.value) throw new LocalizedError('auth.signInRequired')
 
         const send = () => {
             const headers = new Headers(init.headers)
@@ -168,7 +169,8 @@ export function useCmsAuth() {
             response = await send()
         }
         if (response.status === 401) removeTokens()
-        if (!response.ok) throw new Error(`CMS-Anfrage fehlgeschlagen (${response.status}).`)
+        if (!response.ok)
+            throw new LocalizedError('auth.requestFailed', { status: response.status })
         return response
     }
 

@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import type { FacetAuthor, FacetLocale, FacetTaxonomyItem } from '../api/content'
 import { authorName } from '../utils/note'
+const { t } = useI18n()
 
 const props = defineProps<{
     search: string
@@ -50,15 +52,15 @@ function toggleSortDirection() {
                     :value="search"
                     type="search"
                     class="grow"
-                    placeholder="Notizen durchsuchen …"
-                    aria-label="Notizen durchsuchen"
+                    :placeholder="t('filters.search')"
+                    :aria-label="t('filters.search')"
                     @input="emit('search', ($event.target as HTMLInputElement).value)"
                 />
                 <button
                     v-if="search"
                     type="button"
                     class="btn btn-ghost btn-xs btn-circle text-xl"
-                    aria-label="Suche zurücksetzen"
+                    :aria-label="t('filters.clearSearch')"
                     @click="emit('search', '')"
                 >
                     ✕
@@ -67,20 +69,20 @@ function toggleSortDirection() {
             <select
                 :value="sortField"
                 class="select select-bordered hidden w-44 lg:block"
-                aria-label="Sortieren nach"
+                :aria-label="t('filters.sortBy')"
                 @change="emit('update:sortField', ($event.target as HTMLSelectElement).value)"
             >
-                <option value="created_at">Erstelldatum</option>
-                <option value="title">Titel</option>
-                <option value="author.last_name">Autor</option>
+                <option value="created_at">{{ t('filters.created') }}</option>
+                <option value="title">{{ t('filters.title') }}</option>
+                <option value="author.last_name">{{ t('filters.author') }}</option>
             </select>
             <button
                 type="button"
                 class="btn btn-square hidden lg:flex"
                 :aria-label="
-                    sortDirection === 'asc' ? 'Aufsteigend sortiert' : 'Absteigend sortiert'
+                    sortDirection === 'asc' ? t('filters.ascending') : t('filters.descending')
                 "
-                :title="sortDirection === 'asc' ? 'Aufsteigend sortiert' : 'Absteigend sortiert'"
+                :title="sortDirection === 'asc' ? t('filters.ascending') : t('filters.descending')"
                 @click="toggleSortDirection"
             >
                 {{ sortDirection === 'asc' ? '↑' : '↓' }}
@@ -90,10 +92,10 @@ function toggleSortDirection() {
             <select
                 :value="category"
                 class="select select-bordered select-sm w-full lg:w-full"
-                aria-label="Kategorie filtern"
+                :aria-label="t('filters.category')"
                 @change="emit('update:category', ($event.target as HTMLSelectElement).value)"
             >
-                <option value="">Alle Kategorien</option>
+                <option value="">{{ t('filters.allCategories') }}</option>
                 <option v-for="item in categories" :key="item.slug" :value="item.slug">
                     {{ item.name }} ({{ item.count }})
                 </option>
@@ -101,10 +103,10 @@ function toggleSortDirection() {
             <select
                 :value="tag"
                 class="select select-bordered select-sm w-full lg:w-full"
-                aria-label="Tag filtern"
+                :aria-label="t('filters.tag')"
                 @change="emit('update:tag', ($event.target as HTMLSelectElement).value)"
             >
-                <option value="">Alle Tags</option>
+                <option value="">{{ t('filters.allTags') }}</option>
                 <option v-for="item in tags" :key="item.slug" :value="item.slug">
                     {{ item.name }} ({{ item.count }})
                 </option>
@@ -112,10 +114,10 @@ function toggleSortDirection() {
             <select
                 :value="author"
                 class="select select-bordered select-sm w-full lg:w-full"
-                aria-label="Autor filtern"
+                :aria-label="t('filters.authorFilter')"
                 @change="emit('update:author', ($event.target as HTMLSelectElement).value)"
             >
-                <option value="">Alle Autoren</option>
+                <option value="">{{ t('filters.allAuthors') }}</option>
                 <option v-for="item in authors" :key="item.slug" :value="item.slug">
                     {{ authorName(item) }} ({{ item.count }})
                 </option>
@@ -123,10 +125,10 @@ function toggleSortDirection() {
             <select
                 :value="locale"
                 class="select select-bordered select-sm w-full lg:w-full"
-                aria-label="Sprache auswählen"
+                :aria-label="t('filters.noteLanguage')"
                 @change="emit('update:locale', ($event.target as HTMLSelectElement).value)"
             >
-                <option value="">Alle Sprachen</option>
+                <option value="">{{ t('filters.allLanguages') }}</option>
                 <option v-for="item in locales" :key="item.code" :value="item.code">
                     {{ item.name || item.code.toUpperCase() }} ({{ item.count }})
                 </option>
@@ -135,8 +137,8 @@ function toggleSortDirection() {
                 v-if="showReset"
                 type="button"
                 class="btn btn-ghost btn-square btn-sm"
-                aria-label="Filter zurücksetzen"
-                title="Filter zurücksetzen"
+                :aria-label="t('filters.reset')"
+                :title="t('filters.reset')"
                 @click="emit('reset')"
             >
                 <svg
@@ -158,60 +160,80 @@ function toggleSortDirection() {
             </button>
         </div>
         <details class="collapse collapse-arrow mt-2 border border-base-300 bg-base-200 lg:hidden">
-            <summary class="collapse-title min-h-0 py-3 text-sm font-medium">Filter & Sortierung</summary>
+            <summary class="collapse-title min-h-0 py-3 text-sm font-medium">
+                {{ t('filters.heading') }}
+            </summary>
             <div class="collapse-content grid gap-2 pt-1">
                 <select
                     :value="category"
                     class="select select-bordered select-sm w-full"
-                    aria-label="Kategorie filtern"
+                    :aria-label="t('filters.category')"
                     @change="emit('update:category', ($event.target as HTMLSelectElement).value)"
                 >
-                    <option value="">Alle Kategorien</option>
-                    <option v-for="item in categories" :key="item.slug" :value="item.slug">{{ item.name }} ({{ item.count }})</option>
+                    <option value="">{{ t('filters.allCategories') }}</option>
+                    <option v-for="item in categories" :key="item.slug" :value="item.slug">
+                        {{ item.name }} ({{ item.count }})
+                    </option>
                 </select>
                 <select
                     :value="tag"
                     class="select select-bordered select-sm w-full"
-                    aria-label="Tag filtern"
+                    :aria-label="t('filters.tag')"
                     @change="emit('update:tag', ($event.target as HTMLSelectElement).value)"
                 >
-                    <option value="">Alle Tags</option>
-                    <option v-for="item in tags" :key="item.slug" :value="item.slug">{{ item.name }} ({{ item.count }})</option>
+                    <option value="">{{ t('filters.allTags') }}</option>
+                    <option v-for="item in tags" :key="item.slug" :value="item.slug">
+                        {{ item.name }} ({{ item.count }})
+                    </option>
                 </select>
                 <select
                     :value="author"
                     class="select select-bordered select-sm w-full"
-                    aria-label="Autor filtern"
+                    :aria-label="t('filters.authorFilter')"
                     @change="emit('update:author', ($event.target as HTMLSelectElement).value)"
                 >
-                    <option value="">Alle Autoren</option>
-                    <option v-for="item in authors" :key="item.slug" :value="item.slug">{{ authorName(item) }} ({{ item.count }})</option>
+                    <option value="">{{ t('filters.allAuthors') }}</option>
+                    <option v-for="item in authors" :key="item.slug" :value="item.slug">
+                        {{ authorName(item) }} ({{ item.count }})
+                    </option>
                 </select>
                 <select
                     :value="locale"
                     class="select select-bordered select-sm w-full"
-                    aria-label="Sprache auswählen"
+                    :aria-label="t('filters.noteLanguage')"
                     @change="emit('update:locale', ($event.target as HTMLSelectElement).value)"
                 >
-                    <option value="">Alle Sprachen</option>
-                    <option v-for="item in locales" :key="item.code" :value="item.code">{{ item.name || item.code.toUpperCase() }} ({{ item.count }})</option>
+                    <option value="">{{ t('filters.allLanguages') }}</option>
+                    <option v-for="item in locales" :key="item.code" :value="item.code">
+                        {{ item.name || item.code.toUpperCase() }} ({{ item.count }})
+                    </option>
                 </select>
                 <div class="flex gap-2">
                     <select
                         :value="sortField"
                         class="select select-bordered select-sm grow"
-                        aria-label="Sortieren nach"
-                        @change="emit('update:sortField', ($event.target as HTMLSelectElement).value)"
+                        :aria-label="t('filters.sortBy')"
+                        @change="
+                            emit('update:sortField', ($event.target as HTMLSelectElement).value)
+                        "
                     >
-                        <option value="created_at">Erstelldatum</option>
-                        <option value="title">Titel</option>
-                        <option value="author.last_name">Autor</option>
+                        <option value="created_at">{{ t('filters.created') }}</option>
+                        <option value="title">{{ t('filters.title') }}</option>
+                        <option value="author.last_name">{{ t('filters.author') }}</option>
                     </select>
                     <button
                         type="button"
                         class="btn btn-square btn-sm"
-                        :aria-label="sortDirection === 'asc' ? 'Aufsteigend sortiert' : 'Absteigend sortiert'"
-                        :title="sortDirection === 'asc' ? 'Aufsteigend sortiert' : 'Absteigend sortiert'"
+                        :aria-label="
+                            sortDirection === 'asc'
+                                ? t('filters.ascending')
+                                : t('filters.descending')
+                        "
+                        :title="
+                            sortDirection === 'asc'
+                                ? t('filters.ascending')
+                                : t('filters.descending')
+                        "
                         @click="toggleSortDirection"
                     >
                         {{ sortDirection === 'asc' ? '↑' : '↓' }}
@@ -220,11 +242,25 @@ function toggleSortDirection() {
                         v-if="showReset"
                         type="button"
                         class="btn btn-ghost btn-square btn-sm"
-                        aria-label="Filter zurücksetzen"
-                        title="Filter zurücksetzen"
+                        :aria-label="t('filters.reset')"
+                        :title="t('filters.reset')"
                         @click="emit('reset')"
                     >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8 3a5 5 0 1 1-4.546 2.914.5.5 0 0 0-.908-.417A6 6 0 1 0 8 2z" /><path d="M8 4.466V.534a.25.25 0 0 0-.41-.192L5.23 2.308a.25.25 0 0 0 0 .384l2.36 1.966A.25.25 0 0 0 8 4.466" /></svg>
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="16"
+                            height="16"
+                            fill="currentColor"
+                            viewBox="0 0 16 16"
+                        >
+                            <path
+                                fill-rule="evenodd"
+                                d="M8 3a5 5 0 1 1-4.546 2.914.5.5 0 0 0-.908-.417A6 6 0 1 0 8 2z"
+                            />
+                            <path
+                                d="M8 4.466V.534a.25.25 0 0 0-.41-.192L5.23 2.308a.25.25 0 0 0 0 .384l2.36 1.966A.25.25 0 0 0 8 4.466"
+                            />
+                        </svg>
                     </button>
                 </div>
             </div>

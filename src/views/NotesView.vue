@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import {
     fetchFacets,
     fetchNote,
@@ -13,8 +14,10 @@ import {
 import NoteCard from '../components/NoteCard.vue'
 import NoteFilters from '../components/NoteFilters.vue'
 import NoteModal from '../components/NoteModal.vue'
+import { LocalizedError, localizedErrorText, toLocalizedError } from '../utils/localizedError'
 
 type FilterKind = 'tag' | 'category' | 'author'
+const { t } = useI18n()
 type SortField = 'created_at' | 'title' | 'author.last_name'
 type QueryKey = FilterKind | 'locale' | 'search' | 'sort' | 'direction' | 'note'
 
@@ -37,12 +40,15 @@ const sortDirection = ref<'asc' | 'desc'>(sortDirectionFromQuery())
 const isLoading = ref(true)
 const isLoadingMore = ref(false)
 const hasLoaded = ref(false)
-const error = ref('')
+const error = ref<LocalizedError | null>(null)
+const errorMessage = computed(() => localizedErrorText(error.value))
 const activeNote = ref<Note | null>(null)
 const isDetailLoading = ref(false)
-const detailError = ref('')
+const detailError = ref<LocalizedError | null>(null)
+const detailErrorMessage = computed(() => localizedErrorText(detailError.value))
 const pageScrollY = ref(0)
-const facetError = ref('')
+const facetError = ref<LocalizedError | null>(null)
+const facetErrorMessage = computed(() => localizedErrorText(facetError.value))
 let searchTimer: ReturnType<typeof setTimeout> | undefined
 let requestVersion = 0
 let facetRequestVersion = 0
@@ -153,7 +159,7 @@ async function loadNotes(reset = false) {
     notesController = controller
     if (reset) isLoading.value = true
     else isLoadingMore.value = true
-    error.value = ''
+    error.value = null
 
     try {
         const data = await fetchNotes(
@@ -175,9 +181,11 @@ async function loadNotes(reset = false) {
         total.value = data.count
         hasLoaded.value = true
     } catch (cause) {
-        if (version === requestVersion && cause instanceof Error && cause.name !== 'AbortError') {
-            error.value =
-                cause instanceof Error ? cause.message : 'Die Notizen konnten nicht geladen werden.'
+        if (
+            version === requestVersion &&
+            !(cause instanceof Error && cause.name === 'AbortError')
+        ) {
+            error.value = toLocalizedError(cause, 'notes.loadFailed')
         }
     } finally {
         if (version === requestVersion) {
@@ -196,7 +204,7 @@ async function loadFilters() {
     const version = ++facetRequestVersion
     const controller = new AbortController()
     facetsController = controller
-    facetError.value = ''
+    facetError.value = null
     try {
         const facets = await fetchFacets(
             {
@@ -217,10 +225,9 @@ async function loadFilters() {
     } catch (cause) {
         if (
             version === facetRequestVersion &&
-            cause instanceof Error &&
-            cause.name !== 'AbortError'
+            !(cause instanceof Error && cause.name === 'AbortError')
         ) {
-            facetError.value = 'Filteroptionen konnten nicht aktualisiert werden.'
+            facetError.value = new LocalizedError('notes.facetsFailed')
         }
     }
 }
@@ -242,7 +249,7 @@ function resetFilters() {
 
 async function loadNoteDetail(slug: string) {
     if (!slug) {
-        detailError.value = 'Diese Notiz hat keinen gültigen Slug.'
+        detailError.value = new LocalizedError('notes.invalidSlug')
         return
     }
 
@@ -251,7 +258,7 @@ async function loadNoteDetail(slug: string) {
     const controller = new AbortController()
     detailController = controller
     isDetailLoading.value = true
-    detailError.value = ''
+    detailError.value = null
     activeNote.value = null
     try {
         const note = await fetchNote(slug, selectedLocale.value, controller.signal)
@@ -261,8 +268,7 @@ async function loadNoteDetail(slug: string) {
             version === detailRequestVersion &&
             !(cause instanceof Error && cause.name === 'AbortError')
         ) {
-            detailError.value =
-                cause instanceof Error ? cause.message : 'Die Notiz konnte nicht geladen werden.'
+            detailError.value = toLocalizedError(cause, 'notes.detailFailed')
         }
     } finally {
         if (version === detailRequestVersion) isDetailLoading.value = false
@@ -271,7 +277,7 @@ async function loadNoteDetail(slug: string) {
 
 function openNote(note: Note) {
     if (!note.slug) {
-        detailError.value = 'Diese Notiz hat keinen gültigen Slug.'
+        detailError.value = new LocalizedError('notes.invalidSlug')
         return
     }
 
@@ -287,7 +293,7 @@ function closeNote() {
     detailRequestVersion += 1
     activeNote.value = null
     isDetailLoading.value = false
-    detailError.value = ''
+    detailError.value = null
     if (filterFromQuery('note')) {
         const query = { ...route.query }
         delete query.note
@@ -302,7 +308,7 @@ function syncRouteNote() {
         detailRequestVersion += 1
         activeNote.value = null
         isDetailLoading.value = false
-        detailError.value = ''
+        detailError.value = null
         return
     }
     if (activeNote.value?.slug !== slug) void loadNoteDetail(slug)
@@ -314,7 +320,8 @@ function openNoteEditor(note: Note) {
 }
 
 function reloadAfterNoteUpdated(event: Event) {
-    const { oldSlug, newSlug } = (event as CustomEvent<{ oldSlug?: string; newSlug: string }>).detail
+    const { oldSlug, newSlug } = (event as CustomEvent<{ oldSlug?: string; newSlug: string }>)
+        .detail
     if (filterFromQuery('note') === oldSlug) {
         void router.replace({ name: 'notes', query: { ...route.query, note: newSlug } })
     }
@@ -392,11 +399,11 @@ onMounted(() => {
         <section class="mb-4 flex flex-col justify-between gap-5 md:flex-row md:items-end">
             <div>
                 <h1 class="text-2xl lg:text-3xl font-bold tracking-tight sm:text-4xl">
-                    Zitate & Gedanken
+                    {{ t('notes.heading') }}
                 </h1>
             </div>
             <p class="text-sm text-base-content/60">
-                <span class="font-semibold text-base-content">{{ total }}</span> Notizen gefunden
+                {{ total === 1 ? t('notes.foundOne') : t('notes.found', { count: total }) }}
             </p>
         </section>
 
@@ -424,13 +431,13 @@ onMounted(() => {
             @submit="submitSearch"
         />
 
-        <div v-if="error" role="alert" class="alert alert-error mb-8">
-            <span>{{ error }}</span
-            ><button class="btn btn-sm" @click="loadNotes(true)">Erneut versuchen</button>
+        <div v-if="errorMessage" role="alert" class="alert alert-error mb-8">
+            <span>{{ errorMessage }}</span
+            ><button class="btn btn-sm" @click="loadNotes(true)">{{ t('common.retry') }}</button>
         </div>
-        <div v-if="facetError" role="alert" class="alert alert-warning mb-8">
-            <span>{{ facetError }}</span
-            ><button class="btn btn-sm" @click="loadFilters">Erneut versuchen</button>
+        <div v-if="facetErrorMessage" role="alert" class="alert alert-warning mb-8">
+            <span>{{ facetErrorMessage }}</span
+            ><button class="btn btn-sm" @click="loadFilters">{{ t('common.retry') }}</button>
         </div>
         <template v-if="isLoading">
             <div class="note-grid grid gap-5">
@@ -446,21 +453,21 @@ onMounted(() => {
                 <NoteCard v-for="note in notes" :key="note.id" :note="note" @select="openNote" />
             </div>
             <div v-if="isLoadingMore" class="py-4 text-center text-sm text-base-content/60">
-                Weitere Notizen werden geladen …
+                {{ t('notes.loadingMore') }}
             </div>
         </template>
         <div
             v-else-if="hasLoaded"
             class="rounded-2xl border border-dashed border-base-300 bg-base-100 py-20 text-center"
         >
-            <p class="text-lg font-semibold">Keine Notizen gefunden</p>
-            <p class="mt-1 text-base-content/60">Passe deine Suche oder Filter an.</p>
+            <p class="text-lg font-semibold">{{ t('notes.empty') }}</p>
+            <p class="mt-1 text-base-content/60">{{ t('notes.emptyHint') }}</p>
         </div>
         <button
             v-if="showScrollTop"
             class="btn btn-primary btn-circle fixed right-5 bottom-5 z-20 shadow-lg"
             type="button"
-            aria-label="Zum Anfang der Liste"
+            :aria-label="t('notes.scrollTop')"
             @click="scrollToTop"
         >
             ↑
@@ -468,7 +475,7 @@ onMounted(() => {
         <NoteModal
             :note="activeNote"
             :is-loading="isDetailLoading"
-            :error="detailError"
+            :error="detailErrorMessage"
             @close="closeNote"
             @edit="openNoteEditor"
         />

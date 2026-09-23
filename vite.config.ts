@@ -17,7 +17,8 @@ export default defineConfig({
             manifest: {
                 name: 'nur notes',
                 short_name: 'nur notes',
-                description: 'Deine Notizen aus nur-cms.',
+                description: 'Your notes from nur-cms.',
+                lang: 'en',
                 theme_color: '#5a4ad1',
                 background_color: '#f8f7ff',
                 display: 'standalone',

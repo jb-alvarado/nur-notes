@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import Multiselect from 'vue-multiselect'
+import { useI18n } from 'vue-i18n'
 import { noteTypeSlug, type ListResponse, type Note } from '../api/content'
 import { useCmsAuth } from '../composables/useCmsAuth'
+import { LocalizedError, localizedErrorText, toLocalizedError } from '../utils/localizedError'
 
 type ContentType = { id?: number; slug?: string }
 type ContentLocale = { id?: number; code?: string; name?: string }
@@ -34,6 +36,7 @@ type EditableEntry = {
 }
 
 const props = defineProps<{ open: boolean; note?: Note | null }>()
+const { t } = useI18n()
 const emit = defineEmits<{ close: [] }>()
 const auth = useCmsAuth()
 const { isLogin, verificationPending } = auth
@@ -53,7 +56,8 @@ const selectedTags = ref<TagOption[]>([])
 const editingNodes = ref<EditableNode[]>([])
 const originalTagIds = ref<number[]>([])
 const originalAuthorIds = ref<number[]>([])
-const error = ref('')
+const error = ref<LocalizedError | null>(null)
+const errorMessage = computed(() => localizedErrorText(error.value))
 const isLoading = ref(false)
 const isCreatingTag = ref(false)
 const isEditing = computed(() => Boolean(props.note?.id))
@@ -90,11 +94,13 @@ async function loadCreationOptions() {
         fetchAll<Omit<AuthorOption, 'displayName'>>(
             '/api/content/authors?fields=id,first_name,last_name,slug&ordering=last_name',
         ),
-        fetchAll<CategoryOption>('/api/content/categories?fields=id,locale_id,name,slug&ordering=name'),
+        fetchAll<CategoryOption>(
+            '/api/content/categories?fields=id,locale_id,name,slug&ordering=name',
+        ),
         fetchAll<TagOption>('/api/content/tags?fields=id,name,slug&ordering=name'),
     ])
     const type = typeList.find((item) => item.slug === noteTypeSlug)
-    if (!type?.id) throw new Error(`Der CMS-Inhaltstyp „${noteTypeSlug}“ wurde nicht gefunden.`)
+    if (!type?.id) throw new LocalizedError('editor.typeMissing', { type: noteTypeSlug })
 
     locales.value = localeList
     authors.value = authorList.map((author) => ({
@@ -115,7 +121,9 @@ async function fetchAll<T>(path: string): Promise<T[]> {
 
     do {
         const separator = path.includes('?') ? '&' : '?'
-        const response = await auth.authenticatedFetch(`${path}${separator}limit=${pageSize}&offset=${offset}`)
+        const response = await auth.authenticatedFetch(
+            `${path}${separator}limit=${pageSize}&offset=${offset}`,
+        )
         const page = (await response.json()) as ListResponse<T>
         results.push(...page.results)
         received = page.results.length
@@ -136,7 +144,7 @@ async function loadNoteForEditing(id: number) {
     )
     const result = (await response.json()) as ListResponse<EditableEntry>
     const entry = result.results[0]
-    if (!entry) throw new Error('Die Notiz konnte nicht zum Bearbeiten geladen werden.')
+    if (!entry) throw new LocalizedError('editor.editLoadFailed')
 
     title.value = entry.title ?? ''
     localeId.value = entry.locale_id ?? null
@@ -164,7 +172,7 @@ watch(localeId, () => {
 
 watch([() => props.open, () => props.note?.id], async ([open]) => {
     if (!open) return
-    error.value = ''
+    error.value = null
     isLoading.value = true
     try {
         if (await auth.inspect()) {
@@ -176,8 +184,7 @@ watch([() => props.open, () => props.note?.id], async ([open]) => {
             auth.resetVerification()
         }
     } catch (cause) {
-        error.value =
-            cause instanceof Error ? cause.message : 'Anmeldung konnte nicht geprüft werden.'
+        error.value = toLocalizedError(cause, 'editor.inspectFailed')
     } finally {
         isLoading.value = false
     }
@@ -185,7 +192,7 @@ watch([() => props.open, () => props.note?.id], async ([open]) => {
 
 async function login() {
     isLoading.value = true
-    error.value = ''
+    error.value = null
     try {
         const result = await auth.login(username.value, password.value)
         password.value = ''
@@ -195,7 +202,7 @@ async function login() {
             if (props.note?.id) await loadNoteForEditing(props.note.id)
         }
     } catch (cause) {
-        error.value = cause instanceof Error ? cause.message : 'Anmeldung fehlgeschlagen.'
+        error.value = toLocalizedError(cause, 'editor.loginFailed')
     } finally {
         isLoading.value = false
     }
@@ -203,7 +210,7 @@ async function login() {
 
 async function verify() {
     isLoading.value = true
-    error.value = ''
+    error.value = null
     try {
         await auth.verify(username.value, code.value)
         code.value = ''
@@ -211,7 +218,7 @@ async function verify() {
         resetForm()
         if (props.note?.id) await loadNoteForEditing(props.note.id)
     } catch (cause) {
-        error.value = cause instanceof Error ? cause.message : 'Verifizierung fehlgeschlagen.'
+        error.value = toLocalizedError(cause, 'editor.verifyFailed')
     } finally {
         isLoading.value = false
     }
@@ -269,18 +276,18 @@ function nodesForSave() {
 
 async function saveNote() {
     if (!noteTypeId || !localeId.value) {
-        error.value = 'Inhaltstyp oder Sprache konnten nicht geladen werden.'
+        error.value = new LocalizedError('editor.optionsMissing')
         return
     }
     const normalizedTitle = title.value.trim()
     const noteSlug = slugify(normalizedTitle)
     if (!noteSlug) {
-        error.value = 'Aus dem Titel konnte kein gültiger Slug erstellt werden.'
+        error.value = new LocalizedError('editor.invalidTitle')
         return
     }
 
     isLoading.value = true
-    error.value = ''
+    error.value = null
     try {
         const payload = {
             locale_id: localeId.value,
@@ -314,8 +321,7 @@ async function saveNote() {
         }
         emit('close')
     } catch (cause) {
-        error.value =
-            cause instanceof Error ? cause.message : 'Notiz konnte nicht gespeichert werden.'
+        error.value = toLocalizedError(cause, 'editor.saveFailed')
     } finally {
         isLoading.value = false
     }
@@ -323,16 +329,21 @@ async function saveNote() {
 
 async function deleteNote() {
     if (!props.note?.id || isLoading.value) return
-    if (!window.confirm(`Notiz „${props.note.title || 'ohne Titel'}“ wirklich löschen?`)) return
+    if (
+        !window.confirm(
+            t('editor.confirmDelete', { title: props.note.title || t('editor.withoutTitle') }),
+        )
+    )
+        return
 
     isLoading.value = true
-    error.value = ''
+    error.value = null
     try {
         await auth.authenticatedFetch(`/api/content/entries/${props.note.id}`, { method: 'DELETE' })
         window.dispatchEvent(new Event('notes:deleted'))
         emit('close')
     } catch (cause) {
-        error.value = cause instanceof Error ? cause.message : 'Notiz konnte nicht gelöscht werden.'
+        error.value = toLocalizedError(cause, 'editor.deleteFailed')
     } finally {
         isLoading.value = false
     }
@@ -351,7 +362,7 @@ async function insertTag(name: string) {
     }
 
     isCreatingTag.value = true
-    error.value = ''
+    error.value = null
     try {
         const tag: Omit<TagOption, 'id'> = { name: normalizedName, slug: slugify(normalizedName) }
         const response = await auth.authenticatedFetch('/api/content/tags', {
@@ -363,7 +374,7 @@ async function insertTag(name: string) {
         tags.value.push(created)
         selectedTags.value.push(created)
     } catch (cause) {
-        error.value = cause instanceof Error ? cause.message : 'Tag konnte nicht angelegt werden.'
+        error.value = toLocalizedError(cause, 'editor.tagFailed')
     } finally {
         isCreatingTag.value = false
     }
@@ -380,8 +391,8 @@ async function insertTag(name: string) {
                     v-if="isEditing && isLogin"
                     class="btn btn-sm btn-circle btn-ghost text-error"
                     type="button"
-                    aria-label="Notiz löschen"
-                    title="Notiz löschen"
+                    :aria-label="t('common.delete')"
+                    :title="t('common.delete')"
                     :disabled="isLoading"
                     @click="deleteNote"
                 >
@@ -398,18 +409,18 @@ async function insertTag(name: string) {
                 </button>
                 <button
                     class="btn btn-sm btn-circle btn-ghost"
-                    aria-label="Schließen"
+                    :aria-label="t('common.close')"
                     @click="emit('close')"
                 >
                     ✕
                 </button>
             </div>
-            <h2 class="text-xl font-bold">{{ isEditing ? 'Notiz bearbeiten' : 'Neue Notiz' }}</h2>
+            <h2 class="text-xl font-bold">{{ isEditing ? t('editor.edit') : t('editor.new') }}</h2>
             <p v-if="!isLogin" class="mt-2 text-sm text-base-content/60">
-                Melde dich an, um eine Notiz zu {{ isEditing ? 'bearbeiten' : 'erstellen' }}.
+                {{ isEditing ? t('editor.signInToEdit') : t('editor.signInToCreate') }}
             </p>
-            <div v-if="error" class="alert alert-error mt-4 text-sm">
-                <span>{{ error }}</span>
+            <div v-if="errorMessage" class="alert alert-error mt-4 text-sm">
+                <span>{{ errorMessage }}</span>
             </div>
             <div v-if="isLoading" class="mt-6 flex justify-center">
                 <span class="loading loading-spinner loading-md"></span>
@@ -418,18 +429,18 @@ async function insertTag(name: string) {
                 <input
                     v-model="title"
                     class="input input-bordered w-full"
-                    placeholder="Titel"
+                    :placeholder="t('editor.title')"
                     required
                 />
                 <fieldset class="fieldset min-w-0">
-                    <legend class="fieldset-legend">Sprache</legend>
+                    <legend class="fieldset-legend">{{ t('editor.language') }}</legend>
                     <select
                         v-model="localeId"
                         class="select select-bordered w-full"
-                        aria-label="Sprache auswählen"
+                        :aria-label="t('editor.selectLanguage')"
                         required
                     >
-                        <option :value="null" disabled>Sprache auswählen</option>
+                        <option :value="null" disabled>{{ t('editor.selectLanguage') }}</option>
                         <option v-for="locale in locales" :key="locale.id" :value="locale.id">
                             {{ locale.name || locale.code }}
                         </option>
@@ -437,38 +448,47 @@ async function insertTag(name: string) {
                 </fieldset>
                 <div class="grid gap-3 sm:grid-cols-2">
                     <fieldset class="fieldset min-w-0">
-                        <legend class="fieldset-legend">Autoren</legend>
+                        <legend class="fieldset-legend">{{ t('editor.authors') }}</legend>
                         <Multiselect
                             v-model="selectedAuthors"
                             track-by="id"
                             label="displayName"
-                            placeholder="Autoren auswählen"
+                            :placeholder="t('editor.selectAuthors')"
+                            :select-label="t('common.select')"
+                            :selected-label="t('common.selected')"
+                            :deselect-label="t('common.remove')"
                             :options="authors"
                             :multiple="true"
-                            aria-label="Autoren auswählen"
+                            :aria-label="t('editor.selectAuthors')"
                         />
                     </fieldset>
                     <fieldset class="fieldset min-w-0">
-                        <legend class="fieldset-legend">Kategorie</legend>
+                        <legend class="fieldset-legend">{{ t('editor.category') }}</legend>
                         <Multiselect
                             v-model="selectedCategory"
                             track-by="id"
                             label="name"
-                            placeholder="Kategorie auswählen"
+                            :placeholder="t('editor.selectCategory')"
+                            :select-label="t('common.select')"
+                            :selected-label="t('common.selected')"
+                            :deselect-label="t('common.remove')"
                             :options="availableCategories"
                             :allow-empty="true"
-                            aria-label="Kategorie auswählen"
+                            :aria-label="t('editor.selectCategory')"
                         />
                     </fieldset>
                 </div>
                 <fieldset class="fieldset min-w-0">
-                    <legend class="fieldset-legend">Tags</legend>
+                    <legend class="fieldset-legend">{{ t('editor.tags') }}</legend>
                     <Multiselect
                         v-model="selectedTags"
                         track-by="id"
                         label="name"
-                        placeholder="Tags auswählen oder neu anlegen"
-                        tag-placeholder="Neuen Tag anlegen"
+                        :placeholder="t('editor.selectTags')"
+                        :tag-placeholder="t('editor.addTag')"
+                        :select-label="t('common.select')"
+                        :selected-label="t('common.selected')"
+                        :deselect-label="t('common.remove')"
                         :options="tags"
                         :multiple="true"
                         :taggable="true"
@@ -476,40 +496,40 @@ async function insertTag(name: string) {
                         :disabled="isCreatingTag"
                         :use-teleport="true"
                         content-wrapper-class="notes-tag-dropdown"
-                        aria-label="Tags auswählen"
+                        :aria-label="t('editor.selectTags')"
                         @tag="insertTag"
                     />
                 </fieldset>
                 <textarea
                     v-model="text"
                     class="textarea textarea-bordered min-h-36 w-full sm:min-h-44"
-                    placeholder="Deine Notiz …"
+                    :placeholder="t('editor.text')"
                     required
                 ></textarea>
                 <button class="btn btn-primary">
-                    {{ isEditing ? 'Änderungen speichern' : 'Notiz veröffentlichen' }}
+                    {{ isEditing ? t('editor.save') : t('editor.publish') }}
                 </button>
             </form>
             <form v-else-if="verificationPending" class="mt-5 grid gap-3" @submit.prevent="verify">
                 <p class="text-sm text-base-content/60">
-                    Gib den zugesandten Verifizierungscode ein.
+                    {{ t('editor.codeHint') }}
                 </p>
                 <input
                     v-model="code"
                     class="input input-bordered w-full"
                     autocomplete="one-time-code"
                     inputmode="numeric"
-                    placeholder="Verifizierungscode"
+                    :placeholder="t('editor.code')"
                     required
                 />
-                <button class="btn btn-primary">Code bestätigen</button>
+                <button class="btn btn-primary">{{ t('editor.verify') }}</button>
             </form>
             <form v-else class="mt-5 grid gap-3" @submit.prevent="login">
                 <input
                     v-model="username"
                     class="input input-bordered w-full"
                     autocomplete="username"
-                    placeholder="Benutzername oder E-Mail"
+                    :placeholder="t('editor.username')"
                     required
                 />
                 <input
@@ -517,14 +537,14 @@ async function insertTag(name: string) {
                     class="input input-bordered w-full"
                     type="password"
                     autocomplete="current-password"
-                    placeholder="Passwort"
+                    :placeholder="t('editor.password')"
                     required
                 />
-                <button class="btn btn-primary">Anmelden</button>
+                <button class="btn btn-primary">{{ t('editor.signIn') }}</button>
             </form>
         </div>
         <form method="dialog" class="modal-backdrop">
-            <button @click="emit('close')">schließen</button>
+            <button @click="emit('close')">{{ t('common.close') }}</button>
         </form>
     </dialog>
 </template>

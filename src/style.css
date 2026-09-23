@@ -1,7 +1,9 @@
 @import 'vue-multiselect/dist/vue-multiselect.css';
 @import 'tailwindcss';
 @plugin 'daisyui' {
-    themes: light --default, dark --prefersdark;
+    themes:
+        light --default,
+        dark --prefersdark;
 }
 
 @theme {
@@ -22,7 +24,9 @@ body {
 }
 
 .note-card {
-    transition: transform 180ms ease, box-shadow 180ms ease;
+    transition:
+        transform 180ms ease,
+        box-shadow 180ms ease;
 }
 
 .note-card:hover {

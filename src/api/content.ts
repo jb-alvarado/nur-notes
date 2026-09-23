@@ -1,3 +1,5 @@
+import { LocalizedError } from '../utils/localizedError'
+
 export interface ListResponse<T> {
     count: number
     results: T[]
@@ -86,33 +88,52 @@ function url(path: string, params: Record<string, string | number | undefined> =
     return `${apiBase}${path}?${search}`
 }
 
-async function get<T>(path: string, params?: Record<string, string | number | undefined>, signal?: AbortSignal): Promise<T> {
+async function get<T>(
+    path: string,
+    params?: Record<string, string | number | undefined>,
+    signal?: AbortSignal,
+): Promise<T> {
     const response = await fetch(url(path, params), { signal })
-    if (!response.ok) throw new Error(`CMS-Anfrage fehlgeschlagen (${response.status})`)
+    if (!response.ok) throw new LocalizedError('auth.requestFailed', { status: response.status })
     return response.json() as Promise<T>
 }
 
 export function fetchNotes(query: NoteQuery, signal?: AbortSignal) {
-    return get<ListResponse<Note>>('/api/content/entries', {
-        type: noteTypeSlug,
-        fields: 'id,title,slug,created_at,updated_at,media,category.name,category.slug,tags,author.first_name,author.last_name,author.slug,node.text,node.ast',
-        ordering: '-created_at',
-        character_limit: 420,
-        blocks_limit: 1,
-        ...query,
-    }, signal)
+    return get<ListResponse<Note>>(
+        '/api/content/entries',
+        {
+            type: noteTypeSlug,
+            fields: 'id,title,slug,created_at,updated_at,media,category.name,category.slug,tags,author.first_name,author.last_name,author.slug,node.text,node.ast',
+            ordering: '-created_at',
+            character_limit: 420,
+            blocks_limit: 1,
+            ...query,
+        },
+        signal,
+    )
 }
 
 export function fetchNote(slug: string, locale?: string, signal?: AbortSignal) {
-    return get<Note>(`/api/content/entries/${encodeURIComponent(noteTypeSlug)}/${encodeURIComponent(slug)}`, {
-        locale,
-        fields: 'id,title,slug,created_at,updated_at,media,category.name,category.slug,tags,author.first_name,author.last_name,author.slug,node.text,node.ast',
-    }, signal)
+    return get<Note>(
+        `/api/content/entries/${encodeURIComponent(noteTypeSlug)}/${encodeURIComponent(slug)}`,
+        {
+            locale,
+            fields: 'id,title,slug,created_at,updated_at,media,category.name,category.slug,tags,author.first_name,author.last_name,author.slug,node.text,node.ast',
+        },
+        signal,
+    )
 }
 
-export function fetchFacets(query: Omit<NoteQuery, 'limit' | 'offset' | 'ordering'>, signal?: AbortSignal) {
-    return get<FacetsResponse>('/api/content/entries/facets', {
-        type: noteTypeSlug,
-        ...query,
-    }, signal)
+export function fetchFacets(
+    query: Omit<NoteQuery, 'limit' | 'offset' | 'ordering'>,
+    signal?: AbortSignal,
+) {
+    return get<FacetsResponse>(
+        '/api/content/entries/facets',
+        {
+            type: noteTypeSlug,
+            ...query,
+        },
+        signal,
+    )
 }

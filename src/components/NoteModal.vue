@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { Note } from '../api/content'
 import { useCmsAuth } from '../composables/useCmsAuth'
 import { authorName, formatDate, noteImage, noteText } from '../utils/note'
 
 const props = defineProps<{ note: Note | null; isLoading: boolean; error: string }>()
+const { t } = useI18n()
 const emit = defineEmits<{ close: []; edit: [note: Note] }>()
 const auth = useCmsAuth()
 const { isLogin } = auth
@@ -20,25 +22,33 @@ watch(
 </script>
 
 <template>
-    <dialog class="modal" :open="note !== null || isLoading || Boolean(error)" @click.self="emit('close')">
+    <dialog
+        class="modal"
+        :open="note !== null || isLoading || Boolean(error)"
+        @click.self="emit('close')"
+    >
         <div class="modal-box max-w-3xl p-0">
             <div class="absolute right-3 top-3 z-10 flex gap-1">
                 <button
                     v-if="note && isLogin"
                     class="btn btn-sm btn-circle btn-ghost bg-base-100/80"
                     type="button"
-                    aria-label="Notiz bearbeiten"
-                    title="Notiz bearbeiten"
+                    :aria-label="t('common.edit')"
+                    :title="t('common.edit')"
                     @click="emit('edit', note)"
                 >
-                    <svg viewBox="0 0 24 24" aria-hidden="true" class="size-4 fill-none stroke-current stroke-2">
+                    <svg
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                        class="size-4 fill-none stroke-current stroke-2"
+                    >
                         <path d="M12 20h9" />
                         <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z" />
                     </svg>
                 </button>
                 <button
                     class="btn btn-sm btn-circle btn-ghost bg-base-100/80 text-xl"
-                    aria-label="Dialog schließen"
+                    :aria-label="t('common.close')"
                     @click="emit('close')"
                 >
                     ✕
@@ -49,7 +59,7 @@ watch(
                 <div class="mt-6 h-48 animate-pulse rounded bg-base-300"></div>
             </div>
             <div v-else-if="error" class="p-8">
-                <p class="font-semibold">Notiz konnte nicht geladen werden</p>
+                <p class="font-semibold">{{ t('notes.detailFailed') }}</p>
                 <p class="mt-2 text-base-content/60">{{ error }}</p>
             </div>
             <template v-else-if="note">
@@ -63,19 +73,23 @@ watch(
                     />
                 </figure>
                 <article class="p-6 sm:p-8">
-                    <div class="mb-4 flex flex-wrap items-center gap-2 text-sm text-base-content/60">
+                    <div
+                        class="mb-4 flex flex-wrap items-center gap-2 text-sm text-base-content/60"
+                    >
                         <RouterLink
                             v-if="note.category?.slug"
                             :to="{ name: 'notes', query: { category: note.category.slug } }"
                             class="badge badge-outline hover:border-primary hover:text-primary"
                         >
-                            {{ note.category.name || 'Allgemein' }}
+                            {{ note.category.name || t('common.general') }}
                         </RouterLink>
-                        <span v-else class="badge badge-outline">{{ note.category?.name || 'Allgemein' }}</span>
+                        <span v-else class="badge badge-outline">{{
+                            note.category?.name || t('common.general')
+                        }}</span>
                         <time>{{ formatDate(note.created_at) }}</time>
                     </div>
                     <div class="mb-4 flex items-center gap-2 text-sm text-base-content/60">
-                        <span>Autor:</span>
+                        <span>{{ t('filters.author') }}:</span>
                         <template v-for="author in note.authors" :key="author.slug">
                             <RouterLink
                                 v-if="author.slug"
@@ -88,7 +102,7 @@ watch(
                         </template>
                     </div>
                     <h2 class="text-2xl font-bold tracking-tight sm:text-3xl">
-                        {{ note.title || 'Unbenannte Notiz' }}
+                        {{ note.title || t('common.untitled') }}
                     </h2>
                     <p class="mt-6 whitespace-pre-wrap leading-7 text-base-content/80">
                         {{ noteText(note) }}
@@ -107,7 +121,7 @@ watch(
             </template>
         </div>
         <form method="dialog" class="modal-backdrop">
-            <button @click="emit('close')">schließen</button>
+            <button @click="emit('close')">{{ t('common.close') }}</button>
         </form>
     </dialog>
 </template>

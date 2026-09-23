@@ -4,8 +4,12 @@ import { RouterView } from 'vue-router'
 import type { Note } from './api/content'
 import AppHeader from './components/AppHeader.vue'
 import CreateNoteModal from './components/CreateNoteModal.vue'
+import { i18n, syncDocumentLocale } from './i18n'
 
-const isDark = ref(localStorage.theme === 'dark' || (!localStorage.theme && matchMedia('(prefers-color-scheme: dark)').matches))
+const isDark = ref(
+    localStorage.theme === 'dark' ||
+        (!localStorage.theme && matchMedia('(prefers-color-scheme: dark)').matches),
+)
 const isCreateNoteOpen = ref(false)
 const noteToEdit = ref<Note | null>(null)
 
@@ -29,7 +33,10 @@ function closeNoteForm() {
     noteToEdit.value = null
 }
 
-watch(isDark, (dark) => (document.documentElement.dataset.theme = dark ? 'dark' : 'light'), { immediate: true })
+watch(isDark, (dark) => (document.documentElement.dataset.theme = dark ? 'dark' : 'light'), {
+    immediate: true,
+})
+watch(i18n.global.locale, syncDocumentLocale, { immediate: true })
 onMounted(() => window.addEventListener('notes:edit', openEditNote))
 onBeforeUnmount(() => window.removeEventListener('notes:edit', openEditNote))
 </script>

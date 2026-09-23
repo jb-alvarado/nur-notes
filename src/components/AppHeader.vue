@@ -1,6 +1,39 @@
 <script setup lang="ts">
+import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { setUiLocale, type UiLocale } from '../i18n'
+
+const { t, locale } = useI18n()
+const languageMenu = ref<HTMLDetailsElement | null>(null)
 defineProps<{ isDark: boolean }>()
 defineEmits<{ toggleTheme: []; createNote: [] }>()
+
+function closeLanguageMenu() {
+    if (languageMenu.value) languageMenu.value.open = false
+}
+
+function changeLanguage(value: UiLocale) {
+    setUiLocale(value)
+    closeLanguageMenu()
+    languageMenu.value?.querySelector('summary')?.focus()
+}
+
+function onEscape() {
+    closeLanguageMenu()
+    languageMenu.value?.querySelector('summary')?.focus()
+}
+
+function onDocumentPointerDown(event: PointerEvent) {
+    if (languageMenu.value && !languageMenu.value.contains(event.target as Node))
+        closeLanguageMenu()
+}
+
+function onMenuFocusOut(event: FocusEvent) {
+    if (!languageMenu.value?.contains(event.relatedTarget as Node | null)) closeLanguageMenu()
+}
+
+onMounted(() => document.addEventListener('pointerdown', onDocumentPointerDown))
+onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocumentPointerDown))
 </script>
 
 <template>
@@ -24,12 +57,67 @@ defineEmits<{ toggleTheme: []; createNote: [] }>()
                     >Nur <span class="text-primary">Notes</span></span
                 >
             </RouterLink>
-            <button class="btn btn-ghost btn-circle" aria-label="Neue Notiz" title="Neue Notiz" @click="$emit('createNote')">
-                <svg viewBox="0 0 24 24" class="size-5 fill-none stroke-current" stroke-width="2"><path d="M12 5v14M5 12h14" /></svg>
-            </button>
             <button
                 class="btn btn-ghost btn-circle"
-                :aria-label="isDark ? 'Helles Design' : 'Dunkles Design'"
+                :aria-label="t('header.newNote')"
+                :title="t('header.newNote')"
+                @click="$emit('createNote')"
+            >
+                <svg viewBox="0 0 24 24" class="size-5 fill-none stroke-current" stroke-width="2">
+                    <path d="M12 5v14M5 12h14" />
+                </svg>
+            </button>
+            <details
+                ref="languageMenu"
+                class="dropdown dropdown-end"
+                @focusout="onMenuFocusOut"
+                @keydown.esc.prevent.stop="onEscape"
+            >
+                <summary
+                    class="btn btn-ghost btn-circle"
+                    :aria-label="t('header.language')"
+                    :title="t('header.language')"
+                >
+                    <svg
+                        viewBox="0 0 24 24"
+                        class="size-5 fill-none stroke-current"
+                        stroke-width="2"
+                        aria-hidden="true"
+                    >
+                        <circle cx="12" cy="12" r="9" />
+                        <path
+                            d="M3 12h18M12 3c2.5 2.5 3.5 5.5 3.5 9s-1 6.5-3.5 9c-2.5-2.5-3.5-5.5-3.5-9s1-6.5 3.5-9Z"
+                        />
+                    </svg>
+                </summary>
+                <ul
+                    class="menu dropdown-content z-50 mt-2 w-40 rounded-box border border-base-300 bg-base-100 p-2 shadow-lg"
+                >
+                    <li>
+                        <button
+                            type="button"
+                            :class="{ 'menu-active': locale === 'en' }"
+                            :aria-pressed="locale === 'en'"
+                            @click="changeLanguage('en')"
+                        >
+                            English
+                        </button>
+                    </li>
+                    <li>
+                        <button
+                            type="button"
+                            :class="{ 'menu-active': locale === 'de' }"
+                            :aria-pressed="locale === 'de'"
+                            @click="changeLanguage('de')"
+                        >
+                            Deutsch
+                        </button>
+                    </li>
+                </ul>
+            </details>
+            <button
+                class="btn btn-ghost btn-circle"
+                :aria-label="isDark ? t('header.lightTheme') : t('header.darkTheme')"
                 @click="$emit('toggleTheme')"
             >
                 <svg

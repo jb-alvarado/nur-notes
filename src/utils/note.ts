@@ -1,11 +1,22 @@
 import type { Author, Note, NoteNode } from '../api/content'
+import { i18n } from '../i18n'
 
 export function authorName(author?: Author) {
-    return [author?.first_name, author?.last_name].filter(Boolean).join(' ') || author?.slug || 'Unbekannt'
+    return (
+        [author?.first_name, author?.last_name].filter(Boolean).join(' ') ||
+        author?.slug ||
+        i18n.global.t('common.unknown')
+    )
 }
 
 export function formatDate(value?: string) {
-    return value ? new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(value)) : ''
+    return value
+        ? new Intl.DateTimeFormat(i18n.global.locale.value, {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric',
+          }).format(new Date(value))
+        : ''
 }
 
 function extractAstText(value?: unknown, characterCount?: number): string {
@@ -41,23 +52,22 @@ function nodeText(node: NoteNode): string {
 export function noteExcerpt(note: Note, maxLength = 280) {
     const node = note.nodes?.[0]
     const text = node ? nodeText(node) : ''
-    const excerpt = text.replace(/\s+/g, ' ').trim() || 'Keine Vorschau für diese Notiz vorhanden.'
+    const excerpt = text.replace(/\s+/g, ' ').trim() || i18n.global.t('notes.noPreview')
 
     if (excerpt.length <= maxLength) return excerpt
 
     // Nicht mitten in einem Wort abschneiden: bis zum letzten vollständigen Wort zurückgehen.
-    const shortened = excerpt.slice(0, maxLength + 1).replace(/\s+\S*$/, '').trimEnd()
+    const shortened = excerpt
+        .slice(0, maxLength + 1)
+        .replace(/\s+\S*$/, '')
+        .trimEnd()
     return `${shortened || excerpt.slice(0, maxLength).trimEnd()}…`
 }
 
 export function noteText(note: Note) {
-    const text = note.nodes
-        ?.map(nodeText)
-        .join(' ')
-        .replace(/\s+/g, ' ')
-        .trim()
+    const text = note.nodes?.map(nodeText).join(' ').replace(/\s+/g, ' ').trim()
 
-    return text || 'Für diese Notiz ist kein Text vorhanden.'
+    return text || i18n.global.t('notes.noText')
 }
 
 function mediaUrl(path?: string, filename?: string) {
