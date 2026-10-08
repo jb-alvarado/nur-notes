@@ -29,7 +29,11 @@ function onDocumentPointerDown(event: PointerEvent) {
 }
 
 function onMenuFocusOut(event: FocusEvent) {
-    if (!languageMenu.value?.contains(event.relatedTarget as Node | null)) closeLanguageMenu()
+    // Safari can blur the summary without focusing the tapped language button.
+    // Closing on a null relatedTarget would hide the button before its click.
+    // Pointer interactions outside the menu are handled by pointerdown instead.
+    if (event.relatedTarget instanceof Node && !languageMenu.value?.contains(event.relatedTarget))
+        closeLanguageMenu()
 }
 
 onMounted(() => document.addEventListener('pointerdown', onDocumentPointerDown))
